@@ -688,7 +688,9 @@
 - (void)cancelProcessing
 {
     if (reader) {
-        [reader cancelReading];
+        runSynchronouslyOnVideoProcessingQueue(^{
+            [reader cancelReading];
+        });
     }
     [self endProcessing];
 }
