@@ -3,8 +3,6 @@
 #import "GPUImagePicture.h"
 #import <mach/mach.h>
 
-static NSUInteger count = 0;
-
 void runOnMainQueueWithoutDeadlocking(void (^block)(void))
 {
 	if ([NSThread isMainThread])
@@ -19,9 +17,10 @@ void runOnMainQueueWithoutDeadlocking(void (^block)(void))
 
 void runSynchronouslyOnVideoProcessingQueue(void (^block)(void))
 {
-    dispatch_queue_t videoProcessingQueue = dispatch_queue_create([[NSString stringWithFormat:@"hello-%lu", count] UTF8String], 0);
-    count++;
+    block();
+    return;
     
+    dispatch_queue_t videoProcessingQueue = [GPUImageContext sharedContextQueue];
 #if (!defined(__IPHONE_6_0) || (__IPHONE_OS_VERSION_MIN_REQUIRED < __IPHONE_6_0))
     if (dispatch_get_current_queue() == videoProcessingQueue)
 #else
@@ -37,9 +36,10 @@ void runSynchronouslyOnVideoProcessingQueue(void (^block)(void))
 
 void runAsynchronouslyOnVideoProcessingQueue(void (^block)(void))
 {
-    dispatch_queue_t videoProcessingQueue = dispatch_queue_create([[NSString stringWithFormat:@"hello-%lu", count] UTF8String], 0);
-    count++;
+    block();
+    return;
     
+    dispatch_queue_t videoProcessingQueue = [GPUImageContext sharedContextQueue];
 #if (!defined(__IPHONE_6_0) || (__IPHONE_OS_VERSION_MIN_REQUIRED < __IPHONE_6_0))
     if (dispatch_get_current_queue() == videoProcessingQueue)
 #else
