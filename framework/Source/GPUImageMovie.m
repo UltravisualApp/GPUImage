@@ -44,7 +44,6 @@ static dispatch_queue_t GetUnusedMovieReadingQueue(void)
         aq = [[__MovieReadingQueueItem alloc] initWithIndex:__MovieReadingQueueIndex++];
         [__MovieReadingQueues addObject:aq];
     }
-    NSLog(@"returning queue: %@", [NSString stringWithUTF8String:dispatch_queue_get_label(aq.queue)]);
     aq.isAvailable = NO;
     return aq.queue;
 }
