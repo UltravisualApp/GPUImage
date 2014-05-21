@@ -3,6 +3,65 @@
 #import "GPUImageFilter.h"
 #import "GPUImageVideoCamera.h"
 
+@interface __MovieReadingQueueItem : NSObject
+@property (nonatomic, assign) BOOL isAvailable;
+@property (nonatomic, readonly) dispatch_queue_t queue;
+- (id)initWithIndex:(NSInteger)index;
+@end
+@implementation __MovieReadingQueueItem
+- (id)initWithIndex:(NSInteger)index
+{
+    self = [super init];
+    if (self)
+    {
+        _isAvailable = YES;
+        _queue = dispatch_queue_create([NSString stringWithFormat:@"com.sunsetlakesoftware.GPUImage.videoReadingQueue_%li", (long)index].UTF8String, DISPATCH_QUEUE_SERIAL);
+    }
+    return self;
+}
+@end
+static NSInteger __MovieReadingQueueIndex = 0;
+static NSMutableArray *__MovieReadingQueues;
+static dispatch_queue_t GetUnusedMovieReadingQueue(void)
+{
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        __MovieReadingQueues = [NSMutableArray array];
+    });
+    __MovieReadingQueueItem *aq = nil; // available queue
+    // loop through queue items to find an available one
+    for (__MovieReadingQueueItem *qi in __MovieReadingQueues)
+    {
+        if (qi.isAvailable)
+        {
+            aq = qi;
+            break;
+        }
+    }
+    if (!aq)
+    {
+        // none available? create a new one
+        aq = [[__MovieReadingQueueItem alloc] initWithIndex:__MovieReadingQueueIndex++];
+        [__MovieReadingQueues addObject:aq];
+    }
+    NSLog(@"returning queue: %@", [NSString stringWithUTF8String:dispatch_queue_get_label(aq.queue)]);
+    aq.isAvailable = NO;
+    return aq.queue;
+}
+static void ReleaseMovieReadingQueue(dispatch_queue_t queue)
+{
+    NSString *queueLabel = [NSString stringWithUTF8String:dispatch_queue_get_label(queue)];
+    for (__MovieReadingQueueItem *qi in __MovieReadingQueues)
+    {
+        NSString *qiLabel = [NSString stringWithUTF8String:dispatch_queue_get_label(qi.queue)];
+        if (queueLabel && qiLabel && [queueLabel isEqualToString:qiLabel])
+        {
+            qi.isAvailable = YES;
+            return;
+        }
+    }
+}
+
 @interface GPUImageMovie () <AVPlayerItemOutputPullDelegate>
 {
     BOOL audioEncodingIsFinished, videoEncodingIsFinished;
@@ -25,6 +84,8 @@
     BOOL isFullYUVRange;
 
     int imageBufferWidth, imageBufferHeight;
+    
+    dispatch_queue_t movieReadingQueue;
 }
 
 - (void)processAsset;
@@ -174,7 +235,7 @@
     GPUImageMovie __block *blockSelf = self;
     
     [inputAsset loadValuesAsynchronouslyForKeys:[NSArray arrayWithObject:@"tracks"] completionHandler: ^{
-//        runSynchronouslyOnVideoProcessingQueue(^{
+        runAsynchronouslyOnVideoProcessingQueue(^{
             NSError *error = nil;
             AVKeyValueStatus tracksStatus = [inputAsset statusOfValueForKey:@"tracks" error:&error];
             if (!tracksStatus == AVKeyValueStatusLoaded)
@@ -184,7 +245,7 @@
             blockSelf.asset = inputAsset;
             [blockSelf processAsset];
             blockSelf = nil;
-//        });
+        });
     }];
 }
 
@@ -258,31 +319,37 @@
     }
     else
     {
-        while (reader.status == AVAssetReaderStatusReading && (!_shouldRepeat || keepLooping))
+        if (!movieReadingQueue)
         {
-                [weakSelf readNextVideoFrameFromOutput:readerVideoTrackOutput];
-
-            if ( (readerAudioTrackOutput) && (!audioEncodingIsFinished) )
+            movieReadingQueue = GetUnusedMovieReadingQueue();
+        }
+        
+        dispatch_async(movieReadingQueue, ^{
+            while (reader.status == AVAssetReaderStatusReading && (!_shouldRepeat || keepLooping) && movieReadingQueue)
             {
-                    [weakSelf readNextAudioSampleFromOutput:readerAudioTrackOutput];
-            }
-
-        }
-
-        if (reader.status == AVAssetWriterStatusCompleted) {
+                [weakSelf readNextVideoFrameFromOutput:readerVideoTrackOutput];
                 
-            [reader cancelReading];
-
-            if (keepLooping) {
-                reader = nil;
-                dispatch_async(dispatch_get_main_queue(), ^{
-                    [self startProcessing];
-                });
-            } else {
-                [weakSelf endProcessing];
+                if ( (readerAudioTrackOutput) && (!audioEncodingIsFinished) )
+                {
+                    [weakSelf readNextAudioSampleFromOutput:readerAudioTrackOutput];
+                }
             }
-
-        }
+            
+            if (reader.status == AVAssetWriterStatusCompleted) {
+                
+                [reader cancelReading];
+                
+                if (keepLooping) {
+                    reader = nil;
+                    dispatch_async(dispatch_get_main_queue(), ^{
+                        [self startProcessing];
+                    });
+                } else {
+                    [weakSelf endProcessing];
+                }
+                
+            }
+        });
     }
 }
 
@@ -683,6 +750,12 @@
         [self.delegate didCompletePlayingMovie];
     }
     self.delegate = nil;
+    
+    if (movieReadingQueue)
+    {
+        ReleaseMovieReadingQueue(movieReadingQueue);
+        movieReadingQueue = nil;
+    }
 }
 
 - (void)cancelProcessing
