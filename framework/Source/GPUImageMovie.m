@@ -5,8 +5,10 @@
 
 @interface __MovieReadingQueueItem : NSObject
 @property (nonatomic, assign) BOOL isAvailable;
+@property (nonatomic, assign) NSUInteger index;
 @property (nonatomic, readonly) dispatch_queue_t queue;
 - (id)initWithIndex:(NSInteger)index;
+- (void)recycle;
 @end
 @implementation __MovieReadingQueueItem
 - (id)initWithIndex:(NSInteger)index
@@ -14,10 +16,20 @@
     self = [super init];
     if (self)
     {
-        _isAvailable = YES;
-        _queue = dispatch_queue_create([NSString stringWithFormat:@"com.sunsetlakesoftware.GPUImage.videoReadingQueue_%li", (long)index].UTF8String, DISPATCH_QUEUE_SERIAL);
+        _index = index;
+        [self recycle];
     }
     return self;
+}
+- (void)recycle
+{
+    if (_queue)
+    {
+        dispatch_release(_queue);
+    }
+    
+    _isAvailable = YES;
+    _queue = dispatch_queue_create([NSString stringWithFormat:@"com.sunsetlakesoftware.GPUImage.videoReadingQueue_%i", _index].UTF8String, DISPATCH_QUEUE_SERIAL);
 }
 @end
 static NSInteger __MovieReadingQueueIndex = 0;
@@ -44,6 +56,7 @@ static dispatch_queue_t GetUnusedMovieReadingQueue(void)
         aq = [[__MovieReadingQueueItem alloc] initWithIndex:__MovieReadingQueueIndex++];
         [__MovieReadingQueues addObject:aq];
     }
+    NSLog(@"returning queue: %@", [NSString stringWithUTF8String:dispatch_queue_get_label(aq.queue)]);
     aq.isAvailable = NO;
     return aq.queue;
 }
@@ -55,7 +68,7 @@ static void ReleaseMovieReadingQueue(dispatch_queue_t queue)
         NSString *qiLabel = [NSString stringWithUTF8String:dispatch_queue_get_label(qi.queue)];
         if (queueLabel && qiLabel && [queueLabel isEqualToString:qiLabel])
         {
-            qi.isAvailable = YES;
+            [qi recycle];
             return;
         }
     }
@@ -255,33 +268,53 @@ static void ReleaseMovieReadingQueue(dispatch_queue_t queue)
 
     NSDictionary *outputSettings = @{(id)kCVPixelBufferPixelFormatTypeKey: @(kCVPixelFormatType_420YpCbCr8BiPlanarFullRange)};
     isFullYUVRange = YES;
-    // Maybe set alwaysCopiesSampleData to NO on iOS 5.0 for faster video decoding
-    AVAssetReaderTrackOutput *readerVideoTrackOutput = [AVAssetReaderTrackOutput assetReaderTrackOutputWithTrack:[[self.asset tracksWithMediaType:AVMediaTypeVideo] objectAtIndex:0] outputSettings:outputSettings];
-    readerVideoTrackOutput.alwaysCopiesSampleData = NO;
-    [assetReader addOutput:readerVideoTrackOutput];
-
-    NSArray *audioTracks = [self.asset tracksWithMediaType:AVMediaTypeAudio];
-    BOOL shouldRecordAudioTrack = (([audioTracks count] > 0) && (self.audioEncodingTarget != nil) );
-    AVAssetReaderTrackOutput *readerAudioTrackOutput = nil;
-
-    if (shouldRecordAudioTrack)
+    
+    NSArray *tracks = [self.asset tracksWithMediaType:AVMediaTypeVideo];
+    if (tracks && tracks.count)
     {
-        [self.audioEncodingTarget setShouldInvalidateAudioSampleWhenDone:YES];
+        AVAssetTrack *track = [tracks firstObject];
+        // Maybe set alwaysCopiesSampleData to NO on iOS 5.0 for faster video decoding
+        AVAssetReaderTrackOutput *readerVideoTrackOutput = [AVAssetReaderTrackOutput assetReaderTrackOutputWithTrack:track outputSettings:outputSettings];
+        readerVideoTrackOutput.alwaysCopiesSampleData = NO;
+        [assetReader addOutput:readerVideoTrackOutput];
         
-        // This might need to be extended to handle movies with more than one audio track
-        AVAssetTrack* audioTrack = [audioTracks objectAtIndex:0];
-        readerAudioTrackOutput = [AVAssetReaderTrackOutput assetReaderTrackOutputWithTrack:audioTrack outputSettings:nil];
-        readerAudioTrackOutput.alwaysCopiesSampleData = NO;
-        [assetReader addOutput:readerAudioTrackOutput];
+        NSArray *audioTracks = [self.asset tracksWithMediaType:AVMediaTypeAudio];
+        BOOL shouldRecordAudioTrack = (([audioTracks count] > 0) && (self.audioEncodingTarget != nil) );
+        AVAssetReaderTrackOutput *readerAudioTrackOutput = nil;
+        
+        if (shouldRecordAudioTrack)
+        {
+            [self.audioEncodingTarget setShouldInvalidateAudioSampleWhenDone:YES];
+            
+            // This might need to be extended to handle movies with more than one audio track
+            AVAssetTrack* audioTrack = [audioTracks objectAtIndex:0];
+            readerAudioTrackOutput = [AVAssetReaderTrackOutput assetReaderTrackOutputWithTrack:audioTrack outputSettings:nil];
+            readerAudioTrackOutput.alwaysCopiesSampleData = NO;
+            [assetReader addOutput:readerAudioTrackOutput];
+        }
+        
+        return assetReader;
     }
-
-    return assetReader;
+    else
+    {
+        NSLog(@"No tracksfound on asset: %@", self.asset);
+    }
+    
+    return nil;
 }
 
 - (void)processAsset
 {
     reader = [self createAssetReader];
-
+    if (!reader)
+    {
+        NSLog(@"Failed to create reader for asset, attempting to start processing again");
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self startProcessing];
+        });
+        return;
+    }
+    
     AVAssetReaderOutput *readerVideoTrackOutput = nil;
     AVAssetReaderOutput *readerAudioTrackOutput = nil;
 
