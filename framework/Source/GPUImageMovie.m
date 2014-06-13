@@ -2,6 +2,7 @@
 #import "GPUImageMovieWriter.h"
 #import "GPUImageFilter.h"
 #import "GPUImageVideoCamera.h"
+#import "GPUImageAudioPlayer.h"
 
 @interface __MovieReadingQueueItem : NSObject
 @property (nonatomic, assign) BOOL isAvailable;
@@ -29,7 +30,7 @@
     }
     
     _isAvailable = YES;
-    _queue = dispatch_queue_create([NSString stringWithFormat:@"com.sunsetlakesoftware.GPUImage.videoReadingQueue_%i", _index].UTF8String, DISPATCH_QUEUE_SERIAL);
+    _queue = dispatch_queue_create([NSString stringWithFormat:@"com.sunsetlakesoftware.GPUImage.videoReadingQueue_%lu", (unsigned long)_index].UTF8String, DISPATCH_QUEUE_SERIAL);
 }
 @end
 static NSInteger __MovieReadingQueueIndex = 0;
@@ -98,6 +99,12 @@ static void ReleaseMovieReadingQueue(dispatch_queue_t queue)
     int imageBufferWidth, imageBufferHeight;
     
     dispatch_queue_t movieReadingQueue;
+    
+    
+    // Audio Stuff
+    GPUImageAudioPlayer *audioPlayer;
+    CFAbsoluteTime assetStartTime;
+    dispatch_queue_t audio_queue;
 }
 
 - (void)processAsset;
@@ -213,6 +220,10 @@ static void ReleaseMovieReadingQueue(dispatch_queue_t queue)
     //    [displayLink invalidate]; // remove from all run loops
     //    displayLink = nil;
     //}
+    
+    if (audio_queue != nil){
+        dispatch_release(audio_queue);
+    }
 }
 
 #pragma mark -
@@ -261,7 +272,7 @@ static void ReleaseMovieReadingQueue(dispatch_queue_t queue)
     }];
 }
 
-- (AVAssetReader*)createAssetReader
+- (AVAssetReader*)createAssetReader:(BOOL) shouldPlayAudio
 {
     NSError *error = nil;
     AVAssetReader *assetReader = [AVAssetReader assetReaderWithAsset:self.asset error:&error];
@@ -279,10 +290,11 @@ static void ReleaseMovieReadingQueue(dispatch_queue_t queue)
         [assetReader addOutput:readerVideoTrackOutput];
         
         NSArray *audioTracks = [self.asset tracksWithMediaType:AVMediaTypeAudio];
+        
         BOOL shouldRecordAudioTrack = (([audioTracks count] > 0) && (self.audioEncodingTarget != nil) );
         AVAssetReaderTrackOutput *readerAudioTrackOutput = nil;
         
-        if (shouldRecordAudioTrack)
+        if (shouldRecordAudioTrack || shouldPlayAudio)
         {
             [self.audioEncodingTarget setShouldInvalidateAudioSampleWhenDone:YES];
             
@@ -291,6 +303,18 @@ static void ReleaseMovieReadingQueue(dispatch_queue_t queue)
             readerAudioTrackOutput = [AVAssetReaderTrackOutput assetReaderTrackOutputWithTrack:audioTrack outputSettings:nil];
             readerAudioTrackOutput.alwaysCopiesSampleData = NO;
             [assetReader addOutput:readerAudioTrackOutput];
+            
+            if (shouldPlayAudio){
+                if (audio_queue == nil){
+                    audio_queue = dispatch_queue_create("GPUAudioQueue", nil);
+                }
+                
+                if (audioPlayer == nil){
+                    audioPlayer = [[GPUImageAudioPlayer alloc] init];
+                    [audioPlayer initAudio];
+                    [audioPlayer startPlaying];
+                }
+            }
         }
         
         return assetReader;
@@ -305,7 +329,10 @@ static void ReleaseMovieReadingQueue(dispatch_queue_t queue)
 
 - (void)processAsset
 {
-    reader = [self createAssetReader];
+    NSArray *audioTracks = [self.asset tracksWithMediaType:AVMediaTypeAudio];
+    BOOL hasAudioTraks = [audioTracks count] > 0;
+    BOOL shouldPlayAudio = hasAudioTraks && self.playSound;
+    reader = [self createAssetReader:shouldPlayAudio];
     if (!reader)
     {
         NSLog(@"Failed to create reader for asset, attempting to start processing again");
@@ -361,7 +388,7 @@ static void ReleaseMovieReadingQueue(dispatch_queue_t queue)
             {
                 [weakSelf readNextVideoFrameFromOutput:readerVideoTrackOutput];
                 
-                if ( (readerAudioTrackOutput) && (!audioEncodingIsFinished) )
+                if ( (shouldPlayAudio) && (!audioEncodingIsFinished) )
                 {
                     [weakSelf readNextAudioSampleFromOutput:readerAudioTrackOutput];
                 }
@@ -488,13 +515,33 @@ static void ReleaseMovieReadingQueue(dispatch_queue_t queue)
 
 - (BOOL)readNextAudioSampleFromOutput:(AVAssetReaderOutput *)readerAudioTrackOutput;
 {
-    if (reader.status == AVAssetReaderStatusReading && ! audioEncodingIsFinished)
+    if(!self.playSound && audioEncodingIsFinished){
+        return NO;
+    }
+    
+    if (reader.status == AVAssetReaderStatusReading)
     {
         CMSampleBufferRef audioSampleBufferRef = [readerAudioTrackOutput copyNextSampleBuffer];
         if (audioSampleBufferRef)
         {
             //NSLog(@"read an audio frame: %@", CFBridgingRelease(CMTimeCopyDescription(kCFAllocatorDefault, CMSampleBufferGetOutputPresentationTimeStamp(audioSampleBufferRef))));
             [self.audioEncodingTarget processAudioBuffer:audioSampleBufferRef];
+            
+            
+            if (self.playSound){
+                CFRetain(audioSampleBufferRef);
+                dispatch_async(audio_queue, ^{
+                    [audioPlayer copyBuffer:audioSampleBufferRef];
+                    
+                    CMSampleBufferInvalidate(audioSampleBufferRef);
+                    CFRelease(audioSampleBufferRef);
+                });
+                
+            } else if (self.audioEncodingTarget != nil && !audioEncodingIsFinished){
+                [self.audioEncodingTarget processAudioBuffer:audioSampleBufferRef];
+                CMSampleBufferInvalidate(audioSampleBufferRef);
+            }
+            
             CFRelease(audioSampleBufferRef);
             return YES;
         }
@@ -787,6 +834,11 @@ static void ReleaseMovieReadingQueue(dispatch_queue_t queue)
     {
         ReleaseMovieReadingQueue(movieReadingQueue);
         movieReadingQueue = nil;
+    }
+    
+    if (audioPlayer != nil){
+        [audioPlayer stopPlaying];
+        audioPlayer = nil;
     }
 }
 

@@ -356,6 +356,10 @@
 		C2EDA90715BB136D007CBA0F /* GPUImageHueFilter.m in Sources */ = {isa = PBXBuildFile; fileRef = C2EDA90515BB136D007CBA0F /* GPUImageHueFilter.m */; };
 		D443237A17C81C0C00204484 /* GPUImageMovieComposition.h in Headers */ = {isa = PBXBuildFile; fileRef = D443237817C81C0C00204484 /* GPUImageMovieComposition.h */; };
 		D443237B17C81C0C00204484 /* GPUImageMovieComposition.m in Sources */ = {isa = PBXBuildFile; fileRef = D443237917C81C0C00204484 /* GPUImageMovieComposition.m */; };
+		EE2212E0194B89F800A1374D /* TPCircularBuffer.c in Sources */ = {isa = PBXBuildFile; fileRef = EE2212DE194B89F800A1374D /* TPCircularBuffer.c */; };
+		EE2212E1194B89F800A1374D /* TPCircularBuffer.h in Headers */ = {isa = PBXBuildFile; fileRef = EE2212DF194B89F800A1374D /* TPCircularBuffer.h */; };
+		EE2212E4194B8A2900A1374D /* GPUImageAudioPlayer.h in Headers */ = {isa = PBXBuildFile; fileRef = EE2212E2194B8A2900A1374D /* GPUImageAudioPlayer.h */; };
+		EE2212E5194B8A2900A1374D /* GPUImageAudioPlayer.m in Sources */ = {isa = PBXBuildFile; fileRef = EE2212E3194B8A2900A1374D /* GPUImageAudioPlayer.m */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -707,6 +711,10 @@
 		C2EDA90515BB136D007CBA0F /* GPUImageHueFilter.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = GPUImageHueFilter.m; path = Source/GPUImageHueFilter.m; sourceTree = SOURCE_ROOT; };
 		D443237817C81C0C00204484 /* GPUImageMovieComposition.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = GPUImageMovieComposition.h; path = Source/GPUImageMovieComposition.h; sourceTree = SOURCE_ROOT; };
 		D443237917C81C0C00204484 /* GPUImageMovieComposition.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = GPUImageMovieComposition.m; path = Source/GPUImageMovieComposition.m; sourceTree = SOURCE_ROOT; };
+		EE2212DE194B89F800A1374D /* TPCircularBuffer.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = TPCircularBuffer.c; path = Source/iOS/TPCircularBuffer.c; sourceTree = SOURCE_ROOT; };
+		EE2212DF194B89F800A1374D /* TPCircularBuffer.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = TPCircularBuffer.h; path = Source/iOS/TPCircularBuffer.h; sourceTree = SOURCE_ROOT; };
+		EE2212E2194B8A2900A1374D /* GPUImageAudioPlayer.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = GPUImageAudioPlayer.h; path = Source/iOS/GPUImageAudioPlayer.h; sourceTree = SOURCE_ROOT; };
+		EE2212E3194B8A2900A1374D /* GPUImageAudioPlayer.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = GPUImageAudioPlayer.m; path = Source/iOS/GPUImageAudioPlayer.m; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -971,6 +979,7 @@
 		BCB5E78114E232BC00701302 /* Sources */ = {
 			isa = PBXGroup;
 			children = (
+				EE2212DD194B89CC00A1374D /* Audio */,
 				BCB5E77D14E22E4200701302 /* GPUImageOutput.h */,
 				BCB5E77E14E22E4200701302 /* GPUImageOutput.m */,
 				BCB5E76314E208D600701302 /* GPUImageVideoCamera.h */,
@@ -1193,6 +1202,17 @@
 			name = "Supporting Files";
 			sourceTree = "<group>";
 		};
+		EE2212DD194B89CC00A1374D /* Audio */ = {
+			isa = PBXGroup;
+			children = (
+				EE2212E2194B8A2900A1374D /* GPUImageAudioPlayer.h */,
+				EE2212E3194B8A2900A1374D /* GPUImageAudioPlayer.m */,
+				EE2212DE194B89F800A1374D /* TPCircularBuffer.c */,
+				EE2212DF194B89F800A1374D /* TPCircularBuffer.h */,
+			);
+			name = Audio;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXHeadersBuildPhase section */
@@ -1205,6 +1225,7 @@
 				BC245DCA14DDBED7009FE7EB /* GPUImageFilter.h in Headers */,
 				BCB5E75C14E2086300701302 /* GPUImageView.h in Headers */,
 				BCB5E76514E208D700701302 /* GPUImageVideoCamera.h in Headers */,
+				EE2212E4194B8A2900A1374D /* GPUImageAudioPlayer.h in Headers */,
 				BCB5E76C14E20AD700701302 /* GPUImageContext.h in Headers */,
 				BCB5E77F14E22E4300701302 /* GPUImageOutput.h in Headers */,
 				BCB5E79414E3275200701302 /* GLProgram.h in Headers */,
@@ -1272,6 +1293,7 @@
 				BCF3D70F153DF9E7009A1FE5 /* GPUImageEmbossFilter.h in Headers */,
 				BCF3D71D153E06C3009A1FE5 /* GPUImageCannyEdgeDetectionFilter.h in Headers */,
 				BCBF617D16E4F69B00E2784A /* GPUImagePoissonBlendFilter.h in Headers */,
+				EE2212E1194B89F800A1374D /* TPCircularBuffer.h in Headers */,
 				BCF3D722153E0E0C009A1FE5 /* GPUImageThresholdEdgeDetectionFilter.h in Headers */,
 				BCF3D730153F0D6F009A1FE5 /* GPUImageSmoothToonFilter.h in Headers */,
 				83AE9FCD1540E92800F7FC13 /* GPUImageMaskFilter.h in Headers */,
@@ -1484,6 +1506,7 @@
 				BCB5E76D14E20AD700701302 /* GPUImageContext.m in Sources */,
 				BCB5E78014E22E4300701302 /* GPUImageOutput.m in Sources */,
 				BCB5E79514E3275200701302 /* GLProgram.m in Sources */,
+				EE2212E0194B89F800A1374D /* TPCircularBuffer.c in Sources */,
 				BCB5E7C314E4B6D400701302 /* GPUImageSepiaFilter.m in Sources */,
 				BCB5E7DB14E6003400701302 /* GPUImagePicture.m in Sources */,
 				BCB5DE0E14E87F32000AF3C2 /* GPUImagePixellateFilter.m in Sources */,
@@ -1504,6 +1527,7 @@
 				BC982CA014F35C2D0001FF6F /* GPUImageToonFilter.m in Sources */,
 				BC1B715814F49DAA00ACA2AB /* GPUImageRawDataOutput.m in Sources */,
 				BC1B717D14F566E200ACA2AB /* GPUImageSketchFilter.m in Sources */,
+				EE2212E5194B8A2900A1374D /* GPUImageAudioPlayer.m in Sources */,
 				BC1B718F14F56C1D00ACA2AB /* GPUImageSwirlFilter.m in Sources */,
 				0DF3FA2C14FA00C9006AF7D9 /* GPUImageVignetteFilter.m in Sources */,
 				BC1A47F514FC759D00D552E8 /* GPUImageGaussianBlurFilter.m in Sources */,
