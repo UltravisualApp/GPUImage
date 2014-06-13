@@ -298,9 +298,17 @@ static void ReleaseMovieReadingQueue(dispatch_queue_t queue)
         {
             [self.audioEncodingTarget setShouldInvalidateAudioSampleWhenDone:YES];
             
+            NSDictionary *audioOutputSettings = @{ AVFormatIDKey : @(kAudioFormatLinearPCM),
+                                                   AVSampleRateKey : @(44100.0),
+                                                   AVNumberOfChannelsKey : @(2),
+                                                   AVLinearPCMBitDepthKey : @(16),
+                                                   AVLinearPCMIsNonInterleaved : @NO,
+                                                   AVLinearPCMIsFloatKey : @NO,
+                                                   AVLinearPCMIsBigEndianKey : @NO };
+            
             // This might need to be extended to handle movies with more than one audio track
             AVAssetTrack* audioTrack = [audioTracks objectAtIndex:0];
-            readerAudioTrackOutput = [AVAssetReaderTrackOutput assetReaderTrackOutputWithTrack:audioTrack outputSettings:nil];
+            readerAudioTrackOutput = [AVAssetReaderTrackOutput assetReaderTrackOutputWithTrack:audioTrack outputSettings:audioOutputSettings];
             readerAudioTrackOutput.alwaysCopiesSampleData = NO;
             [assetReader addOutput:readerAudioTrackOutput];
             
