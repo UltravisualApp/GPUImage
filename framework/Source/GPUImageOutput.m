@@ -18,8 +18,11 @@ void runOnMainQueueWithoutDeadlocking(void (^block)(void))
 void runSynchronouslyOnVideoProcessingQueue(void (^block)(void))
 {
     dispatch_queue_t videoProcessingQueue = [GPUImageContext sharedContextQueue];
-#if (!defined(__IPHONE_6_0) || (__IPHONE_OS_VERSION_MIN_REQUIRED < __IPHONE_6_0))
+#if !OS_OBJECT_USE_OBJC
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
     if (dispatch_get_current_queue() == videoProcessingQueue)
+#pragma clang diagnostic pop
 #else
 	if (dispatch_get_specific([GPUImageContext contextKey]))
 #endif
@@ -34,8 +37,16 @@ void runSynchronouslyOnVideoProcessingQueue(void (^block)(void))
 void runAsynchronouslyOnVideoProcessingQueue(void (^block)(void))
 {
     dispatch_queue_t videoProcessingQueue = [GPUImageContext sharedContextQueue];
+<<<<<<< HEAD
 #if (!defined(__IPHONE_6_0) || (__IPHONE_OS_VERSION_MIN_REQUIRED < __IPHONE_6_0))
+=======
+    
+#if !OS_OBJECT_USE_OBJC
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+>>>>>>> 56300d11d90552f61d2095608e92ad5f6bace3e4
     if (dispatch_get_current_queue() == videoProcessingQueue)
+#pragma clang diagnostic pop
 #else
     if (dispatch_get_specific([GPUImageContext contextKey]))
 #endif
@@ -45,6 +56,45 @@ void runAsynchronouslyOnVideoProcessingQueue(void (^block)(void))
 	{
 		dispatch_async(videoProcessingQueue, block);
 	}
+}
+
+void runSynchronouslyOnContextQueue(GPUImageContext *context, void (^block)(void))
+{
+    dispatch_queue_t videoProcessingQueue = [context contextQueue];
+#if !OS_OBJECT_USE_OBJC
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+    if (dispatch_get_current_queue() == videoProcessingQueue)
+#pragma clang diagnostic pop
+#else
+        if (dispatch_get_specific([GPUImageContext contextKey]))
+#endif
+        {
+            block();
+        }else
+        {
+            dispatch_sync(videoProcessingQueue, block);
+        }
+}
+
+void runAsynchronouslyOnContextQueue(GPUImageContext *context, void (^block)(void))
+{
+    dispatch_queue_t videoProcessingQueue = [context contextQueue];
+    
+#if !OS_OBJECT_USE_OBJC
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+    if (dispatch_get_current_queue() == videoProcessingQueue)
+#pragma clang diagnostic pop
+#else
+        if (dispatch_get_specific([GPUImageContext contextKey]))
+#endif
+        {
+            block();
+        }else
+        {
+            dispatch_async(videoProcessingQueue, block);
+        }
 }
 
 void reportAvailableMemoryForGPUImage(NSString *tag) 
@@ -358,6 +408,24 @@ void reportAvailableMemoryForGPUImage(NSString *tag)
     if( ! _audioEncodingTarget.hasAudioTrack )
     {
         _audioEncodingTarget.hasAudioTrack = YES;
+    }
+}
+
+-(void)setOutputTextureOptions:(GPUTextureOptions)outputTextureOptions
+{
+    _outputTextureOptions = outputTextureOptions;
+    
+    if( outputFramebuffer.texture )
+    {
+        glBindTexture(GL_TEXTURE_2D,  outputFramebuffer.texture);
+        //_outputTextureOptions.format
+        //_outputTextureOptions.internalFormat
+        //_outputTextureOptions.magFilter
+        //_outputTextureOptions.minFilter
+        //_outputTextureOptions.type
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, _outputTextureOptions.wrapS);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, _outputTextureOptions.wrapT);
+        glBindTexture(GL_TEXTURE_2D, 0);
     }
 }
 

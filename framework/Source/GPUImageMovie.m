@@ -261,7 +261,7 @@ static void ReleaseMovieReadingQueue(dispatch_queue_t queue)
         runAsynchronouslyOnVideoProcessingQueue(^{
             NSError *error = nil;
             AVKeyValueStatus tracksStatus = [inputAsset statusOfValueForKey:@"tracks" error:&error];
-            if (!tracksStatus == AVKeyValueStatusLoaded)
+            if (tracksStatus != AVKeyValueStatusLoaded)
             {
                 return;
             }
@@ -281,8 +281,7 @@ static void ReleaseMovieReadingQueue(dispatch_queue_t queue)
     isFullYUVRange = YES;
     
     NSArray *tracks = [self.asset tracksWithMediaType:AVMediaTypeVideo];
-    if (tracks && tracks.count)
-    {
+    if (tracks && tracks.count) {
         AVAssetTrack *track = [tracks firstObject];
         // Maybe set alwaysCopiesSampleData to NO on iOS 5.0 for faster video decoding
         AVAssetReaderTrackOutput *readerVideoTrackOutput = [AVAssetReaderTrackOutput assetReaderTrackOutputWithTrack:track outputSettings:outputSettings];
@@ -294,8 +293,7 @@ static void ReleaseMovieReadingQueue(dispatch_queue_t queue)
         BOOL shouldRecordAudioTrack = (([audioTracks count] > 0) && (self.audioEncodingTarget != nil) );
         AVAssetReaderTrackOutput *readerAudioTrackOutput = nil;
         
-        if (shouldRecordAudioTrack || shouldPlayAudio)
-        {
+        if (shouldRecordAudioTrack || shouldPlayAudio) {
             [self.audioEncodingTarget setShouldInvalidateAudioSampleWhenDone:YES];
             
             NSDictionary *audioOutputSettings = @{ AVFormatIDKey : @(kAudioFormatLinearPCM),
@@ -312,12 +310,12 @@ static void ReleaseMovieReadingQueue(dispatch_queue_t queue)
             readerAudioTrackOutput.alwaysCopiesSampleData = NO;
             [assetReader addOutput:readerAudioTrackOutput];
             
-            if (shouldPlayAudio){
-                if (audio_queue == nil){
+            if (shouldPlayAudio) {
+                if (audio_queue == nil) {
                     audio_queue = dispatch_queue_create("GPUAudioQueue", nil);
                 }
                 
-                if (audioPlayer == nil){
+                if (audioPlayer == nil) {
                     audioPlayer = [[GPUImageAudioPlayer alloc] init];
                     [audioPlayer initAudio];
                     [audioPlayer startPlaying];
@@ -326,9 +324,7 @@ static void ReleaseMovieReadingQueue(dispatch_queue_t queue)
         }
         
         return assetReader;
-    }
-    else
-    {
+    } else {
         NSLog(@"No tracksfound on asset: %@", self.asset);
     }
     
@@ -341,8 +337,7 @@ static void ReleaseMovieReadingQueue(dispatch_queue_t queue)
     BOOL hasAudioTraks = [audioTracks count] > 0;
     BOOL shouldPlayAudio = hasAudioTraks && self.playSound;
     reader = [self createAssetReader:shouldPlayAudio];
-    if (!reader)
-    {
+    if (!reader) {
         NSLog(@"Failed to create reader for asset, attempting to start processing again");
         dispatch_async(dispatch_get_main_queue(), ^{
             [self startProcessing];
@@ -363,17 +358,15 @@ static void ReleaseMovieReadingQueue(dispatch_queue_t queue)
             readerVideoTrackOutput = output;
         }
     }
-
-    if ([reader startReading] == NO) 
-    {
-            NSLog(@"Error reading from file at URL: %@", self.url);
+    
+    if ([reader startReading] == NO) {
+        NSLog(@"Error reading from file at URL: %@", self.url);
         return;
     }
 
     __unsafe_unretained GPUImageMovie *weakSelf = self;
 
-    if (synchronizedMovieWriter != nil)
-    {
+    if (synchronizedMovieWriter != nil) {
         [synchronizedMovieWriter setVideoInputReadyCallback:^{
             return [weakSelf readNextVideoFrameFromOutput:readerVideoTrackOutput];
         }];
@@ -383,9 +376,7 @@ static void ReleaseMovieReadingQueue(dispatch_queue_t queue)
         }];
 
         [synchronizedMovieWriter enableSynchronizationCallbacks];
-    }
-    else
-    {
+    } else {
         if (!movieReadingQueue)
         {
             movieReadingQueue = GetUnusedMovieReadingQueue();
@@ -403,7 +394,6 @@ static void ReleaseMovieReadingQueue(dispatch_queue_t queue)
             }
             
             if (reader.status == AVAssetWriterStatusCompleted) {
-                
                 [reader cancelReading];
                 
                 if (keepLooping) {
@@ -414,7 +404,6 @@ static void ReleaseMovieReadingQueue(dispatch_queue_t queue)
                 } else {
                     [weakSelf endProcessing];
                 }
-                
             }
         });
     }
@@ -424,11 +413,17 @@ static void ReleaseMovieReadingQueue(dispatch_queue_t queue)
 {
     runSynchronouslyOnVideoProcessingQueue(^{
         displayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(displayLinkCallback:)];
-        [displayLink addToRunLoop:[NSRunLoop currentRunLoop] forMode:NSDefaultRunLoopMode];
+        [displayLink addToRunLoop:[NSRunLoop currentRunLoop] forMode:NSRunLoopCommonModes];
         [displayLink setPaused:YES];
 
         dispatch_queue_t videoProcessingQueue = [GPUImageContext sharedContextQueue];
-        NSDictionary *pixBuffAttributes = @{(id)kCVPixelBufferPixelFormatTypeKey: @(kCVPixelFormatType_420YpCbCr8BiPlanarFullRange)};
+        NSMutableDictionary *pixBuffAttributes = [NSMutableDictionary dictionary];
+        if ([GPUImageContext supportsFastTextureUpload]) {
+            [pixBuffAttributes setObject:@(kCVPixelFormatType_420YpCbCr8BiPlanarFullRange) forKey:(id)kCVPixelBufferPixelFormatTypeKey];
+        }
+        else {
+            [pixBuffAttributes setObject:@(kCVPixelFormatType_32BGRA) forKey:(id)kCVPixelBufferPixelFormatTypeKey];
+        }
         playerItemOutput = [[AVPlayerItemVideoOutput alloc] initWithPixelBufferAttributes:pixBuffAttributes];
         [playerItemOutput setDelegate:self queue:videoProcessingQueue];
 
@@ -606,11 +601,8 @@ static void ReleaseMovieReadingQueue(dispatch_queue_t queue)
 - (void)processMovieFrame:(CVPixelBufferRef)movieFrame withSampleTime:(CMTime)currentSampleTime
 {
     int bufferHeight = (int) CVPixelBufferGetHeight(movieFrame);
-#if TARGET_IPHONE_SIMULATOR
-    int bufferWidth = (int) CVPixelBufferGetBytesPerRow(movieFrame) / 4; // This works around certain movie frame types on the Simulator (see https://github.com/BradLarson/GPUImage/issues/424)
-#else
     int bufferWidth = (int) CVPixelBufferGetWidth(movieFrame);
-#endif
+
     CFTypeRef colorAttachments = CVBufferGetAttachment(movieFrame, kCVImageBufferYCbCrMatrixKey, NULL);
     if (colorAttachments != NULL)
     {
@@ -645,6 +637,9 @@ static void ReleaseMovieReadingQueue(dispatch_queue_t queue)
     
     CFAbsoluteTime startTime = CFAbsoluteTimeGetCurrent();
 
+    // Fix issue 1580
+    [GPUImageContext useImageProcessingContext];
+    
     if ([GPUImageContext supportsFastTextureUpload])
     {
         CVOpenGLESTextureRef luminanceTextureRef = NULL;
