@@ -38,7 +38,10 @@
 - (void)prepareForReuse
 {
     if (self.dispatchQueue) {
+#if OS_OBJECT_HAVE_OBJC_SUPPORT == 0
         dispatch_release(self.dispatchQueue);
+#endif
+        self.dispatchQueue = nil;
     }
     
     self.available = YES;
