@@ -125,7 +125,7 @@
         glEnableVertexAttribArray(displayTextureCoordinateAttribute);
         
         [self setBackgroundColorRed:0.0 green:0.0 blue:0.0 alpha:1.0];
-        _fillMode = kGPUImageFillModePreserveAspectRatio;
+        _fillMode = UIViewContentModeScaleAspectFit;
         [self createDisplayFramebuffer];
     });
 }
@@ -239,24 +239,25 @@
         
         CGRect insetRect = AVMakeRectWithAspectRatioInsideRect(inputImageSize, self.bounds);
         
-        switch(_fillMode)
-        {
-            case kGPUImageFillModeStretch:
-            {
+        switch(_fillMode) {
+            case UIViewContentModeScaleToFill: {
                 widthScaling = 1.0;
                 heightScaling = 1.0;
             }; break;
-            case kGPUImageFillModePreserveAspectRatio:
+            case UIViewContentModeScaleAspectFit:
             {
                 widthScaling = insetRect.size.width / currentViewSize.width;
                 heightScaling = insetRect.size.height / currentViewSize.height;
             }; break;
-            case kGPUImageFillModePreserveAspectRatioAndFill:
+            case UIViewContentModeScaleAspectFill:
             {
                 //            CGFloat widthHolder = insetRect.size.width / currentViewSize.width;
                 widthScaling = currentViewSize.height / insetRect.size.height;
                 heightScaling = currentViewSize.width / insetRect.size.width;
             }; break;
+            default: {
+                @throw [NSException exceptionWithName:@"Unsupported view content mode passed in" reason:@"Does not support content mode" userInfo:nil];
+            }
         }
         
         imageVertices[0] = -widthScaling;
@@ -472,7 +473,7 @@
     }
 }
 
-- (void)setFillMode:(GPUImageFillModeType)newValue;
+- (void)setFillMode:(UIViewContentMode)newValue;
 {
     _fillMode = newValue;
     [self recalculateViewGeometry];
