@@ -53,35 +53,37 @@
 	return [CAEAGLLayer class];
 }
 
-- (id)initWithFrame:(CGRect)frame
+- (instancetype)init
 {
-    if (!(self = [super initWithFrame:frame]))
-    {
-		return nil;
+    self = [super init];
+    if (self) {
+        [self commonInit];
     }
-    
-    [self commonInit];
-    
     return self;
 }
 
--(id)initWithCoder:(NSCoder *)coder
+- (instancetype)initWithFrame:(CGRect)frame
 {
-	if (!(self = [super initWithCoder:coder])) 
-    {
-        return nil;
-	}
+    self = [super initWithFrame:frame];
+    if (self) {
+        [self commonInit];
+    }
+    return self;
+}
 
-    [self commonInit];
-
-	return self;
+- (instancetype)initWithCoder:(NSCoder *)aDecoder
+{
+    self = [super initWithCoder:aDecoder];
+    if (self) {
+        [self commonInit];
+    }
+    return self;
 }
 
 - (void)commonInit;
 {
     // Set scaling to account for Retina display	
-    if ([self respondsToSelector:@selector(setContentScaleFactor:)])
-    {
+    if ([self respondsToSelector:@selector(setContentScaleFactor:)]) {
         self.contentScaleFactor = [[UIScreen mainScreen] scale];
     }
 
