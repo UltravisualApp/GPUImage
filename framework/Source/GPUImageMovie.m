@@ -137,6 +137,7 @@
 
 - (void)dealloc
 {
+    self.delegate = nil;
     // Moved into endProcessing
     //if (self.playerItem && (displayLink != nil))
     //{
@@ -155,6 +156,11 @@
 }
 
 - (void)startProcessing
+{
+    [self startProcessing:nil];
+}
+
+- (void)startProcessing:(void (^)(AVAsset *))assetTrackLoaded
 {
     if( self.playerItem ) {
         [self processPlayerItem];
@@ -180,10 +186,20 @@
         dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
             NSError *error = nil;
             AVKeyValueStatus tracksStatus = [inputAsset statusOfValueForKey:@"tracks" error:&error];
-            if (tracksStatus != AVKeyValueStatusLoaded)
-            {
+            if (tracksStatus != AVKeyValueStatusLoaded) {
                 return;
             }
+            
+            dispatch_async(dispatch_get_main_queue(), ^{
+                if (assetTrackLoaded) {
+                    assetTrackLoaded(inputAsset);
+                }
+                
+                if ([self.delegate respondsToSelector:@selector(movie:trackDidLoad:)]) {
+                    [self.delegate movie:self trackDidLoad:inputAsset];
+                }
+            });
+            
             blockSelf.asset = inputAsset;
             [blockSelf processAsset];
             blockSelf = nil;
@@ -207,7 +223,8 @@
     }
     
     // Maybe set alwaysCopiesSampleData to NO on iOS 5.0 for faster video decoding
-    AVAssetReaderTrackOutput *readerVideoTrackOutput = [AVAssetReaderTrackOutput assetReaderTrackOutputWithTrack:[[self.asset tracksWithMediaType:AVMediaTypeVideo] objectAtIndex:0] outputSettings:outputSettings];
+    AVAssetTrack *videoTrack = [[self.asset tracksWithMediaType:AVMediaTypeVideo] objectAtIndex:0];
+    AVAssetReaderTrackOutput *readerVideoTrackOutput = [AVAssetReaderTrackOutput assetReaderTrackOutputWithTrack:videoTrack outputSettings:outputSettings];
     readerVideoTrackOutput.alwaysCopiesSampleData = NO;
     [assetReader addOutput:readerVideoTrackOutput];
     
@@ -275,11 +292,9 @@
         
         dispatch_async(movieReadingQueue, ^{
             
-            BOOL goodStatus = reader.status == AVAssetReaderStatusReading;
-            BOOL goodToRead = !_shouldRepeat || keepLooping;
-            BOOL goodQueue = movieReadingQueue != nil;
-            
-            while (goodStatus && goodToRead && goodQueue)
+            while (reader.status == AVAssetReaderStatusReading &&
+                   (!_shouldRepeat || keepLooping) &&
+                   movieReadingQueue != nil)
             {
                 [weakSelf readNextVideoFrameFromOutput:readerVideoTrackOutput];
                 
@@ -294,15 +309,17 @@
                 
                 [reader cancelReading];
                 
-                if (keepLooping) {
-                    reader = nil;
-                    dispatch_async(dispatch_get_main_queue(), ^{
-                        [self startProcessing];
-                    });
-                } else {
-                    [weakSelf endProcessing];
-                }
-                
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    if (keepLooping) {
+                        reader = nil;
+                        [weakSelf startProcessing];
+                        if ([weakSelf.delegate respondsToSelector:@selector(movieDidFinishPlayback:)]) {
+                            [weakSelf.delegate movieDidFinishPlayback:self];
+                        }
+                    } else {
+                        [weakSelf endProcessing];
+                    }
+                });
             }
         });
     }
@@ -483,35 +500,26 @@
     int bufferWidth = (int) CVPixelBufferGetWidth(movieFrame);
     
     CFTypeRef colorAttachments = CVBufferGetAttachment(movieFrame, kCVImageBufferYCbCrMatrixKey, NULL);
-    if (colorAttachments != NULL)
-    {
-        if(CFStringCompare(colorAttachments, kCVImageBufferYCbCrMatrix_ITU_R_601_4, 0) == kCFCompareEqualTo)
-        {
-            if (isFullYUVRange)
-            {
+    if (colorAttachments != NULL) {
+        if(CFStringCompare(colorAttachments, kCVImageBufferYCbCrMatrix_ITU_R_601_4, 0) == kCFCompareEqualTo) {
+            if (isFullYUVRange) {
                 _preferredConversion = kColorConversion601FullRange;
             }
-            else
-            {
+            else {
                 _preferredConversion = kColorConversion601;
             }
         }
-        else
-        {
+        else {
             _preferredConversion = kColorConversion709;
         }
     }
-    else
-    {
-        if (isFullYUVRange)
-        {
+    else {
+        if (isFullYUVRange) {
             _preferredConversion = kColorConversion601FullRange;
         }
-        else
-        {
+        else {
             _preferredConversion = kColorConversion601;
         }
-        
     }
     
     CFAbsoluteTime startTime = CFAbsoluteTimeGetCurrent();
@@ -537,16 +545,13 @@
             CVReturn err;
             // Y-plane
             glActiveTexture(GL_TEXTURE4);
-            if ([GPUImageContext deviceSupportsRedTextures])
-            {
+            if ([GPUImageContext deviceSupportsRedTextures]) {
                 err = CVOpenGLESTextureCacheCreateTextureFromImage(kCFAllocatorDefault, [[GPUImageContext sharedImageProcessingContext] coreVideoTextureCache], movieFrame, NULL, GL_TEXTURE_2D, GL_LUMINANCE, bufferWidth, bufferHeight, GL_LUMINANCE, GL_UNSIGNED_BYTE, 0, &luminanceTextureRef);
             }
-            else
-            {
+            else {
                 err = CVOpenGLESTextureCacheCreateTextureFromImage(kCFAllocatorDefault, [[GPUImageContext sharedImageProcessingContext] coreVideoTextureCache], movieFrame, NULL, GL_TEXTURE_2D, GL_LUMINANCE, bufferWidth, bufferHeight, GL_LUMINANCE, GL_UNSIGNED_BYTE, 0, &luminanceTextureRef);
             }
-            if (err)
-            {
+            if (err) {
                 NSLog(@"Error at CVOpenGLESTextureCacheCreateTextureFromImage %d", err);
             }
             
@@ -557,16 +562,14 @@
             
             // UV-plane
             glActiveTexture(GL_TEXTURE5);
-            if ([GPUImageContext deviceSupportsRedTextures])
-            {
+            if ([GPUImageContext deviceSupportsRedTextures]) {
                 err = CVOpenGLESTextureCacheCreateTextureFromImage(kCFAllocatorDefault, [[GPUImageContext sharedImageProcessingContext] coreVideoTextureCache], movieFrame, NULL, GL_TEXTURE_2D, GL_LUMINANCE_ALPHA, bufferWidth/2, bufferHeight/2, GL_LUMINANCE_ALPHA, GL_UNSIGNED_BYTE, 1, &chrominanceTextureRef);
             }
-            else
-            {
+            else {
                 err = CVOpenGLESTextureCacheCreateTextureFromImage(kCFAllocatorDefault, [[GPUImageContext sharedImageProcessingContext] coreVideoTextureCache], movieFrame, NULL, GL_TEXTURE_2D, GL_LUMINANCE_ALPHA, bufferWidth/2, bufferHeight/2, GL_LUMINANCE_ALPHA, GL_UNSIGNED_BYTE, 1, &chrominanceTextureRef);
             }
-            if (err)
-            {
+            
+            if (err) {
                 NSLog(@"Error at CVOpenGLESTextureCacheCreateTextureFromImage %d", err);
             }
             
@@ -575,13 +578,9 @@
             glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
             glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
             
-            //            if (!allTargetsWantMonochromeData)
-            //            {
             [self convertYUVToRGBOutput];
-            //            }
             
-            for (id<GPUImageInput> currentTarget in targets)
-            {
+            for (id<GPUImageInput> currentTarget in targets) {
                 NSInteger indexOfObject = [targets indexOfObject:currentTarget];
                 NSInteger targetTextureIndex = [[targetTextureIndices objectAtIndex:indexOfObject] integerValue];
                 [currentTarget setInputSize:CGSizeMake(bufferWidth, bufferHeight) atIndex:targetTextureIndex];
@@ -590,8 +589,7 @@
             
             [outputFramebuffer unlock];
             
-            for (id<GPUImageInput> currentTarget in targets)
-            {
+            for (id<GPUImageInput> currentTarget in targets) {
                 NSInteger indexOfObject = [targets indexOfObject:currentTarget];
                 NSInteger targetTextureIndex = [[targetTextureIndices objectAtIndex:indexOfObject] integerValue];
                 [currentTarget newFrameReadyAtTime:currentSampleTime atIndex:targetTextureIndex];
@@ -707,10 +705,9 @@
         displayLink = nil;
     }
     
-    if ([self.delegate respondsToSelector:@selector(didCompletePlayingMovie)]) {
-        [self.delegate didCompletePlayingMovie];
+    if ([self.delegate respondsToSelector:@selector(movieDidFinishPlayback:)]) {
+        [self.delegate movieDidFinishPlayback:self];
     }
-    self.delegate = nil;
     
     if (movieReadingQueue) {
         [GPUImageSharedDispatchQueueManager releaseDispatchQueue:movieReadingQueue];

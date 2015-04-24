@@ -5,10 +5,7 @@
 
 /** Protocol for getting Movie played callback.
  */
-@protocol GPUImageMovieDelegate <NSObject>
-
-- (void)didCompletePlayingMovie;
-@end
+@protocol GPUImageMovieDelegate;
 
 /** Source object for filtering movies
  */
@@ -58,8 +55,17 @@
 - (BOOL)readNextVideoFrameFromOutput:(AVAssetReaderOutput *)readerVideoTrackOutput;
 - (BOOL)readNextAudioSampleFromOutput:(AVAssetReaderOutput *)readerAudioTrackOutput;
 - (void)startProcessing;
+- (void)startProcessing:(void(^)(AVAsset *))assetTrackLoaded;
 - (void)endProcessing;
 - (void)cancelProcessing;
 - (void)processMovieFrame:(CMSampleBufferRef)movieSampleBuffer; 
+
+@end
+
+@protocol GPUImageMovieDelegate <NSObject>
+
+@optional
+- (void)movieDidFinishPlayback:(GPUImageMovie *)movie;
+- (void)movie:(GPUImageMovie *)movie trackDidLoad:(AVAsset *)asset;
 
 @end
