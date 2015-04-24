@@ -45,7 +45,7 @@
     }
     
     self.available = YES;
-    const char *dispatchQueueName = [NSString stringWithFormat:@"com.sunsetlakesoftware.GPUImage.dispatchQueueManager_%lu", self.index].UTF8String;
+    const char *dispatchQueueName = [NSString stringWithFormat:@"com.sunsetlakesoftware.GPUImage.dispatchQueueManager_%lu", (unsigned long)self.index].UTF8String;
     self.dispatchQueue = dispatch_queue_create(dispatchQueueName, DISPATCH_QUEUE_SERIAL);
 }
 
