@@ -3,6 +3,7 @@
 #import "GPUImageFilter.h"
 #import "GPUImageVideoCamera.h"
 #import "GPUImageDispatchQueueManager.h"
+#import "GPUImageUtils.h"
 
 @interface GPUImageMovie () <AVPlayerItemOutputPullDelegate>
 {
@@ -159,8 +160,8 @@
 {
     [self startProcessing:nil];
 }
+- (void)startProcessing:(void (^)(AVAsset *asset, NSError *error))assetTrackLoaded
 
-- (void)startProcessing:(void (^)(AVAsset *))assetTrackLoaded
 {
     if( self.playerItem ) {
         [self processPlayerItem];
@@ -186,19 +187,16 @@
         dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
             NSError *error = nil;
             AVKeyValueStatus tracksStatus = [inputAsset statusOfValueForKey:@"tracks" error:&error];
-            if (tracksStatus != AVKeyValueStatusLoaded) {
-                return;
-            }
             
             dispatch_async(dispatch_get_main_queue(), ^{
                 if (assetTrackLoaded) {
-                    assetTrackLoaded(inputAsset);
-                }
-                
-                if ([self.delegate respondsToSelector:@selector(movie:trackDidLoad:)]) {
-                    [self.delegate movie:self trackDidLoad:inputAsset];
+                    assetTrackLoaded(inputAsset, error);
                 }
             });
+            
+            if (tracksStatus != AVKeyValueStatusLoaded) {
+                return;
+            }
             
             blockSelf.asset = inputAsset;
             [blockSelf processAsset];
