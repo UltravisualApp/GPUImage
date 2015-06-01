@@ -160,20 +160,22 @@
 {
     [self startProcessing:nil];
 }
-- (void)startProcessing:(void (^)(AVAsset *asset, NSError *error))assetTrackLoaded
 
+- (void)startProcessing:(void (^)(AVAsset *asset, NSError *error))assetTrackLoaded
 {
-    if( self.playerItem ) {
+    if (self.playerItem) {
         [self processPlayerItem];
         return;
     }
-    if(self.url == nil)
-    {
+    
+    if (self.url == nil) {
         [self processAsset];
         return;
     }
     
-    if (_shouldRepeat) keepLooping = YES;
+    if (_shouldRepeat) {
+        keepLooping = YES;
+    }
     
     previousFrameTime = kCMTimeZero;
     previousActualFrameTime = CFAbsoluteTimeGetCurrent();

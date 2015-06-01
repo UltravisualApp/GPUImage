@@ -55,7 +55,7 @@
 - (BOOL)readNextVideoFrameFromOutput:(AVAssetReaderOutput *)readerVideoTrackOutput;
 - (BOOL)readNextAudioSampleFromOutput:(AVAssetReaderOutput *)readerAudioTrackOutput;
 - (void)startProcessing;
-- (void)startProcessing:(void(^)(AVAsset *, NSError *))assetTrackLoaded;
+- (void)startProcessing:(void(^)(AVAsset *asset, NSError *error))assetTrackLoaded;
 - (void)endProcessing;
 - (void)cancelProcessing;
 - (void)processMovieFrame:(CMSampleBufferRef)movieSampleBuffer; 
