@@ -179,7 +179,9 @@ NSString *const kGPUImageYUVVideoRangeConversionForLAFragmentShaderString = SHAD
     
 	// Create the capture session
 	_captureSession = [[AVCaptureSession alloc] init];
-	
+    _captureSession.usesApplicationAudioSession = YES;
+    _captureSession.automaticallyConfiguresApplicationAudioSession = NO;
+    
     [_captureSession beginConfiguration];
     
 	// Add the video input	
