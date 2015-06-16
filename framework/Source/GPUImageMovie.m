@@ -185,7 +185,7 @@
     
     GPUImageMovie __block *blockSelf = self;
     
-    [inputAsset loadValuesAsynchronouslyForKeys:[NSArray arrayWithObject:@"tracks"] completionHandler: ^{
+    [inputAsset loadValuesAsynchronouslyForKeys:@[@"tracks"] completionHandler: ^{
         dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
             NSError *error = nil;
             AVKeyValueStatus tracksStatus = [inputAsset statusOfValueForKey:@"tracks" error:&error];
