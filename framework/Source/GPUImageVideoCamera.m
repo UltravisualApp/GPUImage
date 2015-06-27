@@ -436,55 +436,63 @@ NSString *const kGPUImageYUVVideoRangeConversionForLAFragmentShaderString = SHAD
 	if (self.frontFacingCameraPresent == NO)
 		return;
 	
-    NSError *error;
-    AVCaptureDeviceInput *newVideoInput;
-    AVCaptureDevicePosition currentCameraPosition = [[videoInput device] position];
-    
-    if (currentCameraPosition == AVCaptureDevicePositionBack)
-    {
-        currentCameraPosition = AVCaptureDevicePositionFront;
+    AVCaptureDevicePosition cameraPosition = self.cameraPosition;
+    if (cameraPosition == AVCaptureDevicePositionBack) {
+        cameraPosition = AVCaptureDevicePositionFront;
     }
-    else
-    {
-        currentCameraPosition = AVCaptureDevicePositionBack;
+    else if (cameraPosition == AVCaptureDevicePositionFront) {
+        cameraPosition = AVCaptureDevicePositionBack;
     }
     
-    AVCaptureDevice *backFacingCamera = nil;
+    [self setCaptureDevicePosition:cameraPosition];
+}
+
+- (void)setCaptureDevicePosition:(AVCaptureDevicePosition)newPosition
+{
+    AVCaptureDevicePosition cameraPosition = self.cameraPosition;
+    
+    if (cameraPosition == newPosition) {
+        NSLog(@"Setting capture device to same position");
+        return;
+    }
+    
+    if (newPosition == AVCaptureDevicePositionUnspecified ||
+        cameraPosition == AVCaptureDevicePositionUnspecified) {
+        @throw [NSException exceptionWithName:@"AVCaptureDevicePositionError" reason:@"Can't set the capture device position to unspecified" userInfo:nil];
+    }
+    
+    AVCaptureDevice *captureDevice = nil;
     NSArray *devices = [AVCaptureDevice devicesWithMediaType:AVMediaTypeVideo];
-	for (AVCaptureDevice *device in devices) 
-	{
-		if ([device position] == currentCameraPosition)
-		{
-			backFacingCamera = device;
-		}
-	}
-    newVideoInput = [[AVCaptureDeviceInput alloc] initWithDevice:backFacingCamera error:&error];
+    for (AVCaptureDevice *device in devices) {
+        if ([device position] == newPosition) {
+            captureDevice = device;
+            break;
+        }
+    }
+    NSError *error;
+    AVCaptureDeviceInput *captureDeviceInput = [[AVCaptureDeviceInput alloc] initWithDevice:captureDevice error:&error];
     
-    if (newVideoInput != nil)
-    {
+    if (captureDeviceInput != nil) {
         [_captureSession beginConfiguration];
         
         [_captureSession removeInput:videoInput];
-        if ([_captureSession canAddInput:newVideoInput])
-        {
-            [_captureSession addInput:newVideoInput];
-            videoInput = newVideoInput;
+        if ([_captureSession canAddInput:captureDeviceInput]) {
+            [_captureSession addInput:captureDeviceInput];
+            videoInput = captureDeviceInput;
         }
-        else
-        {
+        else {
             [_captureSession addInput:videoInput];
         }
-        //captureSession.sessionPreset = oriPreset;
         [_captureSession commitConfiguration];
     }
     
-    _inputCamera = backFacingCamera;
+    _inputCamera = captureDevice;
     [self setOutputImageOrientation:_outputImageOrientation];
 }
 
 - (AVCaptureDevicePosition)cameraPosition 
 {
-    return [[videoInput device] position];
+    return videoInput.device.position;
 }
 
 + (BOOL)isBackFacingCameraPresent;

@@ -140,6 +140,10 @@ extern NSString *const kGPUImageYUVVideoRangeConversionForLAFragmentShaderString
  */
 - (void)rotateCamera;
 
+/** Targeted Capture Device Position
+ */
+- (void)setCaptureDevicePosition:(AVCaptureDevicePosition)newPosition;
+
 /// @name Benchmarking
 
 /** When benchmarking is enabled, this will keep a running average of the time from uploading, processing, and final recording or display
