@@ -625,8 +625,7 @@ NSString *const kGPUImageColorSwizzlingFragmentShaderString = SHADER_STRING
 
 - (void)newFrameReadyAtTime:(CMTime)frameTime atIndex:(NSInteger)textureIndex;
 {
-    if (!self.isRecording)
-    {
+    if (!self.isRecording) {
         [self.firstInputFramebuffer unlock];
         return;
     }
@@ -694,8 +693,10 @@ NSString *const kGPUImageColorSwizzlingFragmentShaderString = SHADER_STRING
             if (!self.assetWriterVideoInput.readyForMoreMediaData) {
                 NSLog(@"2: Had to drop a video frame: %@", CFBridgingRelease(CMTimeCopyDescription(kCFAllocatorDefault, frameTime)));
             } else if (self.assetWriter.status == AVAssetWriterStatusWriting) {
-                if (![self.assetWriterPixelBufferInput appendPixelBuffer:pixel_buffer withPresentationTime:frameTime])
+                if (![self.assetWriterPixelBufferInput appendPixelBuffer:pixel_buffer withPresentationTime:frameTime]) {
                     NSLog(@"Problem appending pixel buffer at time: %@", CFBridgingRelease(CMTimeCopyDescription(kCFAllocatorDefault, frameTime)));
+                }
+                self.allowWriteAudio = YES;
             } else {
                 NSLog(@"Couldn't write a frame");
                 //NSLog(@"Wrote a video frame: %@", CFBridgingRelease(CMTimeCopyDescription(kCFAllocatorDefault, frameTime)));
