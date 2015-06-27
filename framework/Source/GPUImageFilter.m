@@ -363,14 +363,15 @@ NSString *const kGPUImagePassthroughFragmentShaderString = SHADER_STRING
     
     // Trigger processing last, so that our unlock comes first in serial execution, avoiding the need for a callback
     NSArray *targetsClone = targets.copy;
-    for (id<GPUImageInput> currentTarget in targetsClone)
-    {
-        if (currentTarget != self.targetToIgnoreForUpdates)
-        {
+    NSArray *textureIndicesClone = targetTextureIndices.copy;
+    for (id<GPUImageInput> currentTarget in targetsClone) {
+        if (currentTarget != self.targetToIgnoreForUpdates) {
             NSInteger indexOfObject = [targetsClone indexOfObject:currentTarget];
             if (indexOfObject != NSNotFound) {
-                NSInteger textureIndex = [[targetTextureIndices objectAtIndex:indexOfObject] integerValue];
-                [currentTarget newFrameReadyAtTime:frameTime atIndex:textureIndex];
+                if (indexOfObject < textureIndicesClone.count) {
+                    NSInteger textureIndex = [[textureIndicesClone objectAtIndex:indexOfObject] integerValue];
+                    [currentTarget newFrameReadyAtTime:frameTime atIndex:textureIndex];
+                }
             } else {
                 NSLog(@"[ GPUImage Error ] informTargetsAboutNewFrameAtTime, current target not found in targets");
             }
