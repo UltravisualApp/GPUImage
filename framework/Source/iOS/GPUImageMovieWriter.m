@@ -64,71 +64,65 @@ NSString *const kGPUImageColorSwizzlingFragmentShaderString = SHADER_STRING
 
 - (id)initWithMovieURL:(NSURL *)newMovieURL size:(CGSize)newSize fileType:(NSString *)newFileType outputSettings:(NSMutableDictionary *)outputSettings;
 {
-    if (!(self = [super init]))
-    {
-		return nil;
-    }
-
-    self.shouldInvalidateAudioSampleWhenDone = NO;
-    
-    self.enabled = YES;
-    self.alreadyFinishedRecording = NO;
-    self.videoEncodingIsFinished = NO;
-    self.audioEncodingIsFinished = NO;
-
-    self.videoSize = newSize;
-    self.movieURL = newMovieURL;
-    self.fileType = newFileType;
-    self.startTime = kCMTimeInvalid;
-    self.encodingLiveVideo = [[outputSettings objectForKey:@"EncodingLiveVideo"] isKindOfClass:[NSNumber class]] ? [[outputSettings objectForKey:@"EncodingLiveVideo"] boolValue] : YES;
-    self.previousFrameTime = kCMTimeNegativeInfinity;
-    self.previousAudioTime = kCMTimeNegativeInfinity;
-    self.inputRotation = kGPUImageNoRotation;
-    
-    _movieWriterContext = [[GPUImageContext alloc] init];
-    [_movieWriterContext useSharegroup:[[[GPUImageContext sharedImageProcessingContext] context] sharegroup]];
-
-    runSynchronouslyOnContextQueue(_movieWriterContext, ^{
-        [_movieWriterContext useAsCurrentContext];
+    self = [super init];
+    if (self) {
+        self.shouldInvalidateAudioSampleWhenDone = NO;
         
-        if ([GPUImageContext supportsFastTextureUpload])
-        {
-            self.colorSwizzlingProgram = [_movieWriterContext programForVertexShaderString:kGPUImageVertexShaderString fragmentShaderString:kGPUImagePassthroughFragmentShaderString];
-        }
-        else
-        {
-            self.colorSwizzlingProgram = [_movieWriterContext programForVertexShaderString:kGPUImageVertexShaderString fragmentShaderString:kGPUImageColorSwizzlingFragmentShaderString];
-        }
+        self.enabled = YES;
+        self.alreadyFinishedRecording = NO;
+        self.videoEncodingIsFinished = NO;
+        self.audioEncodingIsFinished = NO;
         
-        if (!self.colorSwizzlingProgram.initialized)
-        {
-            [self.colorSwizzlingProgram addAttribute:@"position"];
-            [self.colorSwizzlingProgram addAttribute:@"inputTextureCoordinate"];
+        self.videoSize = newSize;
+        self.movieURL = newMovieURL;
+        self.fileType = newFileType;
+        self.startTime = kCMTimeInvalid;
+        self.encodingLiveVideo = [[outputSettings objectForKey:@"EncodingLiveVideo"] isKindOfClass:[NSNumber class]] ? [[outputSettings objectForKey:@"EncodingLiveVideo"] boolValue] : YES;
+        self.previousFrameTime = kCMTimeNegativeInfinity;
+        self.previousAudioTime = kCMTimeNegativeInfinity;
+        self.inputRotation = kGPUImageNoRotation;
+        
+        _movieWriterContext = [[GPUImageContext alloc] init];
+        [_movieWriterContext useSharegroup:[[[GPUImageContext sharedImageProcessingContext] context] sharegroup]];
+        
+        runSynchronouslyOnContextQueue(_movieWriterContext, ^{
+            [_movieWriterContext useAsCurrentContext];
             
-            if (![self.colorSwizzlingProgram link])
-            {
-                NSString *progLog = [self.colorSwizzlingProgram programLog];
-                NSLog(@"Program link log: %@", progLog);
-                NSString *fragLog = [self.colorSwizzlingProgram fragmentShaderLog];
-                NSLog(@"Fragment shader compile log: %@", fragLog);
-                NSString *vertLog = [self.colorSwizzlingProgram vertexShaderLog];
-                NSLog(@"Vertex shader compile log: %@", vertLog);
-                self.colorSwizzlingProgram = nil;
-                NSAssert(NO, @"Filter shader link failed");
+            if ([GPUImageContext supportsFastTextureUpload]) {
+                self.colorSwizzlingProgram = [_movieWriterContext programForVertexShaderString:kGPUImageVertexShaderString fragmentShaderString:kGPUImagePassthroughFragmentShaderString];
             }
-        }        
+            else {
+                self.colorSwizzlingProgram = [_movieWriterContext programForVertexShaderString:kGPUImageVertexShaderString fragmentShaderString:kGPUImageColorSwizzlingFragmentShaderString];
+            }
+            
+            if (!self.colorSwizzlingProgram.initialized) {
+                [self.colorSwizzlingProgram addAttribute:@"position"];
+                [self.colorSwizzlingProgram addAttribute:@"inputTextureCoordinate"];
+                
+                if (![self.colorSwizzlingProgram link]) {
+                    NSString *progLog = [self.colorSwizzlingProgram programLog];
+                    NSLog(@"Program link log: %@", progLog);
+                    NSString *fragLog = [self.colorSwizzlingProgram fragmentShaderLog];
+                    NSLog(@"Fragment shader compile log: %@", fragLog);
+                    NSString *vertLog = [self.colorSwizzlingProgram vertexShaderLog];
+                    NSLog(@"Vertex shader compile log: %@", vertLog);
+                    self.colorSwizzlingProgram = nil;
+                    NSAssert(NO, @"Filter shader link failed");
+                }
+            }
+            
+            self.colorSwizzlingPositionAttribute = [self.colorSwizzlingProgram attributeIndex:@"position"];
+            self.colorSwizzlingTextureCoordinateAttribute = [self.colorSwizzlingProgram attributeIndex:@"inputTextureCoordinate"];
+            self.colorSwizzlingInputTextureUniform = [self.colorSwizzlingProgram uniformIndex:@"inputImageTexture"];
+            
+            [self.movieWriterContext setContextShaderProgram:self.colorSwizzlingProgram];
+            
+            glEnableVertexAttribArray(self.colorSwizzlingPositionAttribute);
+            glEnableVertexAttribArray(self.colorSwizzlingTextureCoordinateAttribute);
+        });
         
-        self.colorSwizzlingPositionAttribute = [self.colorSwizzlingProgram attributeIndex:@"position"];
-        self.colorSwizzlingTextureCoordinateAttribute = [self.colorSwizzlingProgram attributeIndex:@"inputTextureCoordinate"];
-        self.colorSwizzlingInputTextureUniform = [self.colorSwizzlingProgram uniformIndex:@"inputImageTexture"];
-        
-        [self.movieWriterContext setContextShaderProgram:self.colorSwizzlingProgram];
-        
-        glEnableVertexAttribArray(self.colorSwizzlingPositionAttribute);
-        glEnableVertexAttribArray(self.colorSwizzlingTextureCoordinateAttribute);
-    });
-        
-    [self initializeMovieWithOutputSettings:outputSettings];
+        [self initializeMovieWithOutputSettings:outputSettings];
+    }
 
     return self;
 }
@@ -138,12 +132,10 @@ NSString *const kGPUImageColorSwizzlingFragmentShaderString = SHADER_STRING
     [self destroyDataFBO];
 
 #if !OS_OBJECT_USE_OBJC
-    if( audioQueue != NULL )
-    {
+    if( audioQueue != NULL ) {
         dispatch_release(audioQueue);
     }
-    if( videoQueue != NULL )
-    {
+    if( videoQueue != NULL ) {
         dispatch_release(videoQueue);
     }
 #endif
@@ -160,8 +152,7 @@ NSString *const kGPUImageColorSwizzlingFragmentShaderString = SHADER_STRING
     self.enabled = YES;
     NSError *error = nil;
     self.assetWriter = [[AVAssetWriter alloc] initWithURL:self.movieURL fileType:self.fileType error:&error];
-    if (error != nil)
-    {
+    if (error != nil) {
         NSLog(@"Error: %@", error);
         if (self.failureBlock) {
             self.failureBlock(error);
@@ -176,8 +167,7 @@ NSString *const kGPUImageColorSwizzlingFragmentShaderString = SHADER_STRING
     self.assetWriter.movieFragmentInterval = CMTimeMakeWithSeconds(1.0, 1000);
     
     // use default output settings if none specified
-    if (outputSettings == nil) 
-    {
+    if (outputSettings == nil) {
         NSMutableDictionary *settings = [[NSMutableDictionary alloc] init];
         [settings setObject:AVVideoCodecH264 forKey:AVVideoCodecKey];
         [settings setObject:[NSNumber numberWithInt:self.videoSize.width] forKey:AVVideoWidthKey];
@@ -185,8 +175,7 @@ NSString *const kGPUImageColorSwizzlingFragmentShaderString = SHADER_STRING
         outputSettings = settings;
     }
     // custom output settings specified
-    else 
-    {
+    else {
 		NSString *videoCodec = [outputSettings objectForKey:AVVideoCodecKey];
 		NSNumber *width = [outputSettings objectForKey:AVVideoWidthKey];
 		NSNumber *height = [outputSettings objectForKey:AVVideoHeightKey];
@@ -237,6 +226,10 @@ NSString *const kGPUImageColorSwizzlingFragmentShaderString = SHADER_STRING
     self.assetWriterPixelBufferInput = [AVAssetWriterInputPixelBufferAdaptor assetWriterInputPixelBufferAdaptorWithAssetWriterInput:self.assetWriterVideoInput sourcePixelBufferAttributes:sourcePixelBufferAttributesDictionary];
     
     [self.assetWriter addInput:self.assetWriterVideoInput];
+}
+
+- (void)update:(id)sender {
+    NSLog(@"Asset Writer: %li", (long)self.assetWriter.status);
 }
 
 - (void)setEncodingLiveVideo:(BOOL)encodingLiveVideo
@@ -647,7 +640,10 @@ NSString *const kGPUImageColorSwizzlingFragmentShaderString = SHADER_STRING
 
     if (CMTIME_IS_INVALID(self.startTime)) {
         runSynchronouslyOnContextQueue(self.movieWriterContext, ^{
-            if ((self.videoInputReadyCallback == NULL) && (self.assetWriter.status != AVAssetWriterStatusWriting)) {
+            if (self.assetWriter.status == AVAssetWriterStatusFailed) {
+                @throw [NSException exceptionWithName:@"AVAssetWriter Error" reason:@"Can't write to a failed status writer" userInfo:nil];
+            }
+            else if ((self.videoInputReadyCallback == NULL) && (self.assetWriter.status != AVAssetWriterStatusWriting)) {
                 [self.assetWriter startWriting];
             }
             
