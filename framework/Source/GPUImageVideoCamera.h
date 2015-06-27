@@ -11,6 +11,10 @@ extern NSString *const kGPUImageYUVVideoRangeConversionForRGFragmentShaderString
 extern NSString *const kGPUImageYUVFullRangeConversionForLAFragmentShaderString;
 extern NSString *const kGPUImageYUVVideoRangeConversionForLAFragmentShaderString;
 
+typedef NS_ENUM(NSUInteger, GPUImageVideoCameraAudioPreference) {
+    GPUImageVideoCameraAudioPreferenceAlways,
+    GPUImageVideoCameraAudioPreferenceOnDemand,
+};
 
 //Delegate Protocal for Face Detection.
 @protocol GPUImageVideoCameraDelegate <NSObject>
@@ -84,6 +88,7 @@ extern NSString *const kGPUImageYUVVideoRangeConversionForLAFragmentShaderString
  @param cameraPosition Camera to capture from
  */
 - (id)initWithSessionPreset:(NSString *)sessionPreset cameraPosition:(AVCaptureDevicePosition)cameraPosition;
+- (id)initWithSessionPreset:(NSString *)sessionPreset cameraPosition:(AVCaptureDevicePosition)cameraPosition audioPreference:(GPUImageVideoCameraAudioPreference)audioPreference;
 
 /** Add audio capture to the session. Adding inputs and outputs freezes the capture session momentarily, so you
     can use this method to add the audio inputs and outputs early, if you're going to set the audioEncodingTarget 

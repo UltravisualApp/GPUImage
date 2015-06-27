@@ -62,54 +62,55 @@ void GPUImageCreateResizedSampleBuffer(CVPixelBufferRef cameraFrame, CGSize fina
 #pragma mark -
 #pragma mark Initialization and teardown
 
-- (id)initWithSessionPreset:(NSString *)sessionPreset cameraPosition:(AVCaptureDevicePosition)cameraPosition;
+- (id)initWithSessionPreset:(NSString *)sessionPreset cameraPosition:(AVCaptureDevicePosition)cameraPosition audioPreference:(GPUImageVideoCameraAudioPreference)audioPreference
 {
-    if (!(self = [super initWithSessionPreset:sessionPreset cameraPosition:cameraPosition]))
+    if (!(self = [super initWithSessionPreset:sessionPreset cameraPosition:cameraPosition audioPreference:audioPreference]))
     {
 		return nil;
     }
-    
-    /* Detect iOS version < 6 which require a texture cache corruption workaround */
+    self = [super initWithSessionPreset:sessionPreset cameraPosition:cameraPosition audioPreference:audioPreference];
+    if (self) {
+        /* Detect iOS version < 6 which require a texture cache corruption workaround */
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
-    requiresFrontCameraTextureCacheCorruptionWorkaround = [[[UIDevice currentDevice] systemVersion] compare:@"6.0" options:NSNumericSearch] == NSOrderedAscending;
+        requiresFrontCameraTextureCacheCorruptionWorkaround = [[[UIDevice currentDevice] systemVersion] compare:@"6.0" options:NSNumericSearch] == NSOrderedAscending;
 #pragma clang diagnostic pop
-    
-    [self.captureSession beginConfiguration];
-    
-    photoOutput = [[AVCaptureStillImageOutput alloc] init];
-   
-    // Having a still photo input set to BGRA and video to YUV doesn't work well, so since I don't have YUV resizing for iPhone 4 yet, kick back to BGRA for that device
-//    if (captureAsYUV && [GPUImageContext supportsFastTextureUpload])
-    if (captureAsYUV && [GPUImageContext deviceSupportsRedTextures])
-    {
-        BOOL supportsFullYUVRange = NO;
-        NSArray *supportedPixelFormats = photoOutput.availableImageDataCVPixelFormatTypes;
-        for (NSNumber *currentPixelFormat in supportedPixelFormats) {
-            if ([currentPixelFormat intValue] == kCVPixelFormatType_420YpCbCr8BiPlanarFullRange) {
-                supportsFullYUVRange = YES;
+        
+        [self.captureSession beginConfiguration];
+        
+        photoOutput = [[AVCaptureStillImageOutput alloc] init];
+        
+        // Having a still photo input set to BGRA and video to YUV doesn't work well, so since I don't have YUV resizing for iPhone 4 yet, kick back to BGRA for that device
+        //    if (captureAsYUV && [GPUImageContext supportsFastTextureUpload])
+        if (captureAsYUV && [GPUImageContext deviceSupportsRedTextures])
+        {
+            BOOL supportsFullYUVRange = NO;
+            NSArray *supportedPixelFormats = photoOutput.availableImageDataCVPixelFormatTypes;
+            for (NSNumber *currentPixelFormat in supportedPixelFormats) {
+                if ([currentPixelFormat intValue] == kCVPixelFormatType_420YpCbCr8BiPlanarFullRange) {
+                    supportsFullYUVRange = YES;
+                }
+            }
+            
+            if (supportsFullYUVRange) {
+                [photoOutput setOutputSettings:[NSDictionary dictionaryWithObject:[NSNumber numberWithInt:kCVPixelFormatType_420YpCbCr8BiPlanarFullRange] forKey:(id)kCVPixelBufferPixelFormatTypeKey]];
+            }
+            else {
+                [photoOutput setOutputSettings:[NSDictionary dictionaryWithObject:[NSNumber numberWithInt:kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange] forKey:(id)kCVPixelBufferPixelFormatTypeKey]];
             }
         }
-        
-        if (supportsFullYUVRange) {
-            [photoOutput setOutputSettings:[NSDictionary dictionaryWithObject:[NSNumber numberWithInt:kCVPixelFormatType_420YpCbCr8BiPlanarFullRange] forKey:(id)kCVPixelBufferPixelFormatTypeKey]];
-        }
         else {
-            [photoOutput setOutputSettings:[NSDictionary dictionaryWithObject:[NSNumber numberWithInt:kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange] forKey:(id)kCVPixelBufferPixelFormatTypeKey]];
+            captureAsYUV = NO;
+            [photoOutput setOutputSettings:[NSDictionary dictionaryWithObject:[NSNumber numberWithInt:kCVPixelFormatType_32BGRA] forKey:(id)kCVPixelBufferPixelFormatTypeKey]];
+            [videoOutput setVideoSettings:[NSDictionary dictionaryWithObject:[NSNumber numberWithInt:kCVPixelFormatType_32BGRA] forKey:(id)kCVPixelBufferPixelFormatTypeKey]];
         }
+        
+        [self.captureSession addOutput:photoOutput];
+        
+        [self.captureSession commitConfiguration];
+        
+        self.jpegCompressionQuality = 0.8;
     }
-    else {
-        captureAsYUV = NO;
-        [photoOutput setOutputSettings:[NSDictionary dictionaryWithObject:[NSNumber numberWithInt:kCVPixelFormatType_32BGRA] forKey:(id)kCVPixelBufferPixelFormatTypeKey]];
-        [videoOutput setVideoSettings:[NSDictionary dictionaryWithObject:[NSNumber numberWithInt:kCVPixelFormatType_32BGRA] forKey:(id)kCVPixelBufferPixelFormatTypeKey]];
-    }
-    
-    [self.captureSession addOutput:photoOutput];
-    
-    [self.captureSession commitConfiguration];
-    
-    self.jpegCompressionQuality = 0.8;
-    
     return self;
 }
 
@@ -275,8 +276,18 @@ void GPUImageCreateResizedSampleBuffer(CVPixelBufferRef cameraFrame, CGSize fina
         return;
     }
 
-    [photoOutput captureStillImageAsynchronouslyFromConnection:[[photoOutput connections] objectAtIndex:0] completionHandler:^(CMSampleBufferRef imageSampleBuffer, NSError *error) {
-        if(imageSampleBuffer == NULL){
+    AVCaptureConnection *captureConnection = nil;
+    for (AVCaptureConnection *connection in photoOutput.connections) {
+        for (AVCaptureInputPort *port in connection.inputPorts) {
+            if (port.mediaType == AVMediaTypeVideo) {
+                captureConnection = connection;
+                break;
+            }
+        }
+    }
+    
+    [photoOutput captureStillImageAsynchronouslyFromConnection:captureConnection completionHandler:^(CMSampleBufferRef imageSampleBuffer, NSError *error) {
+        if (imageSampleBuffer == NULL) {
             block(error);
             return;
         }

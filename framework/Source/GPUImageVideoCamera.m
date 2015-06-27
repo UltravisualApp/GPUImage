@@ -113,6 +113,8 @@ NSString *const kGPUImageYUVVideoRangeConversionForLAFragmentShaderString = SHAD
     BOOL addedAudioInputsDueToEncodingTarget;
 }
 
+@property (nonatomic, assign) GPUImageVideoCameraAudioPreference audioPreference;
+
 - (void)updateOrientationSendToTargets;
 - (void)convertYUVToRGBOutput;
 
@@ -132,156 +134,160 @@ NSString *const kGPUImageYUVVideoRangeConversionForLAFragmentShaderString = SHAD
 #pragma mark -
 #pragma mark Initialization and teardown
 
-- (id)init;
+- (instancetype)init;
 {
-    if (!(self = [self initWithSessionPreset:AVCaptureSessionPreset640x480 cameraPosition:AVCaptureDevicePositionBack]))
-    {
-		return nil;
-    }
-    
-    return self;
+    return [self initWithSessionPreset:AVCaptureSessionPreset640x480 cameraPosition:AVCaptureDevicePositionBack audioPreference:GPUImageVideoCameraAudioPreferenceOnDemand];
 }
 
-- (id)initWithSessionPreset:(NSString *)sessionPreset cameraPosition:(AVCaptureDevicePosition)cameraPosition; 
+- (instancetype)initWithSessionPreset:(NSString *)sessionPreset cameraPosition:(AVCaptureDevicePosition)cameraPosition
 {
-	if (!(self = [super init]))
-    {
-		return nil;
-    }
-    
-    cameraProcessingQueue = dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH,0);
-	audioProcessingQueue = dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_LOW,0);
+    return [self initWithSessionPreset:sessionPreset cameraPosition:cameraPosition audioPreference:GPUImageVideoCameraAudioPreferenceOnDemand];
+}
 
-    frameRenderingSemaphore = dispatch_semaphore_create(1);
-
-	_frameRate = 0; // This will not set frame rate unless this value gets set to 1 or above
-    _runBenchmark = NO;
-    capturePaused = NO;
-    outputRotation = kGPUImageNoRotation;
-    internalRotation = kGPUImageNoRotation;
-    captureAsYUV = YES;
-    _preferredConversion = kColorConversion709;
-    
-	// Grab the back-facing or front-facing camera
-    _inputCamera = nil;
-	NSArray *devices = [AVCaptureDevice devicesWithMediaType:AVMediaTypeVideo];
-	for (AVCaptureDevice *device in devices) 
-	{
-		if ([device position] == cameraPosition)
-		{
-			_inputCamera = device;
-		}
-	}
-    
-    if (!_inputCamera) {
-        return nil;
-    }
-    
-	// Create the capture session
-	_captureSession = [[AVCaptureSession alloc] init];
-    _captureSession.usesApplicationAudioSession = YES;
-    _captureSession.automaticallyConfiguresApplicationAudioSession = NO;
-    
-    [_captureSession beginConfiguration];
-    
-	// Add the video input	
-	NSError *error = nil;
-	videoInput = [[AVCaptureDeviceInput alloc] initWithDevice:_inputCamera error:&error];
-	if ([_captureSession canAddInput:videoInput]) 
-	{
-		[_captureSession addInput:videoInput];
-	}
-	
-	// Add the video frame output	
-	videoOutput = [[AVCaptureVideoDataOutput alloc] init];
-	[videoOutput setAlwaysDiscardsLateVideoFrames:NO];
-    
-//    if (captureAsYUV && [GPUImageContext deviceSupportsRedTextures])
-    if (captureAsYUV && [GPUImageContext supportsFastTextureUpload]) {
-        BOOL supportsFullYUVRange = NO;
-        NSArray *supportedPixelFormats = videoOutput.availableVideoCVPixelFormatTypes;
-        for (NSNumber *currentPixelFormat in supportedPixelFormats)
+- (instancetype)initWithSessionPreset:(NSString *)sessionPreset cameraPosition:(AVCaptureDevicePosition)cameraPosition audioPreference:(GPUImageVideoCameraAudioPreference)audioPreference
+{
+    self = [super init];
+    if (self) {
+        cameraProcessingQueue = dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH,0);
+        audioProcessingQueue = dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_LOW,0);
+        
+        frameRenderingSemaphore = dispatch_semaphore_create(1);
+        
+        _frameRate = 0; // This will not set frame rate unless this value gets set to 1 or above
+        _runBenchmark = NO;
+        capturePaused = NO;
+        outputRotation = kGPUImageNoRotation;
+        internalRotation = kGPUImageNoRotation;
+        captureAsYUV = YES;
+        _preferredConversion = kColorConversion709;
+        
+        // Grab the back-facing or front-facing camera
+        _inputCamera = nil;
+        NSArray *devices = [AVCaptureDevice devicesWithMediaType:AVMediaTypeVideo];
+        for (AVCaptureDevice *device in devices)
         {
-            if ([currentPixelFormat intValue] == kCVPixelFormatType_420YpCbCr8BiPlanarFullRange)
+            if ([device position] == cameraPosition)
             {
-                supportsFullYUVRange = YES;
+                _inputCamera = device;
             }
         }
         
-        if (supportsFullYUVRange) {
-            [videoOutput setVideoSettings:[NSDictionary dictionaryWithObject:[NSNumber numberWithInt:kCVPixelFormatType_420YpCbCr8BiPlanarFullRange] forKey:(id)kCVPixelBufferPixelFormatTypeKey]];
-            isFullYUVRange = YES;
+        if (!_inputCamera) {
+            return nil;
         }
-        else {
-            [videoOutput setVideoSettings:[NSDictionary dictionaryWithObject:[NSNumber numberWithInt:kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange] forKey:(id)kCVPixelBufferPixelFormatTypeKey]];
-            isFullYUVRange = NO;
+        
+        // Create the capture session
+        _captureSession = [[AVCaptureSession alloc] init];
+        _captureSession.usesApplicationAudioSession = YES;
+        _captureSession.automaticallyConfiguresApplicationAudioSession = NO;
+        
+        [_captureSession beginConfiguration];
+        
+        // Add the video input
+        NSError *error = nil;
+        videoInput = [[AVCaptureDeviceInput alloc] initWithDevice:_inputCamera error:&error];
+        if ([_captureSession canAddInput:videoInput])
+        {
+            [_captureSession addInput:videoInput];
         }
-    }
-    else {
-        [videoOutput setVideoSettings:[NSDictionary dictionaryWithObject:[NSNumber numberWithInt:kCVPixelFormatType_32BGRA] forKey:(id)kCVPixelBufferPixelFormatTypeKey]];
-    }
-    
-    runSynchronouslyOnVideoProcessingQueue(^{
-        if (captureAsYUV) {
-            [GPUImageContext useImageProcessingContext];
-            if (isFullYUVRange) {
-                yuvConversionProgram = [[GPUImageContext sharedImageProcessingContext] programForVertexShaderString:kGPUImageVertexShaderString fragmentShaderString:kGPUImageYUVFullRangeConversionForLAFragmentShaderString];
-            }
-            else
+        
+        // Add the video frame output
+        videoOutput = [[AVCaptureVideoDataOutput alloc] init];
+        [videoOutput setAlwaysDiscardsLateVideoFrames:NO];
+        
+        //    if (captureAsYUV && [GPUImageContext deviceSupportsRedTextures])
+        if (captureAsYUV && [GPUImageContext supportsFastTextureUpload]) {
+            BOOL supportsFullYUVRange = NO;
+            NSArray *supportedPixelFormats = videoOutput.availableVideoCVPixelFormatTypes;
+            for (NSNumber *currentPixelFormat in supportedPixelFormats)
             {
-                yuvConversionProgram = [[GPUImageContext sharedImageProcessingContext] programForVertexShaderString:kGPUImageVertexShaderString fragmentShaderString:kGPUImageYUVVideoRangeConversionForLAFragmentShaderString];
-            }
-            
-            if (!yuvConversionProgram.initialized) {
-                [yuvConversionProgram addAttribute:@"position"];
-                [yuvConversionProgram addAttribute:@"inputTextureCoordinate"];
-                
-                if (![yuvConversionProgram link]) {
-                    NSString *progLog = [yuvConversionProgram programLog];
-                    NSLog(@"Program link log: %@", progLog);
-                    NSString *fragLog = [yuvConversionProgram fragmentShaderLog];
-                    NSLog(@"Fragment shader compile log: %@", fragLog);
-                    NSString *vertLog = [yuvConversionProgram vertexShaderLog];
-                    NSLog(@"Vertex shader compile log: %@", vertLog);
-                    yuvConversionProgram = nil;
-                    NSAssert(NO, @"Filter shader link failed");
+                if ([currentPixelFormat intValue] == kCVPixelFormatType_420YpCbCr8BiPlanarFullRange)
+                {
+                    supportsFullYUVRange = YES;
                 }
             }
             
-            yuvConversionPositionAttribute = [yuvConversionProgram attributeIndex:@"position"];
-            yuvConversionTextureCoordinateAttribute = [yuvConversionProgram attributeIndex:@"inputTextureCoordinate"];
-            yuvConversionLuminanceTextureUniform = [yuvConversionProgram uniformIndex:@"luminanceTexture"];
-            yuvConversionChrominanceTextureUniform = [yuvConversionProgram uniformIndex:@"chrominanceTexture"];
-            yuvConversionMatrixUniform = [yuvConversionProgram uniformIndex:@"colorConversionMatrix"];
-            
-            [GPUImageContext setActiveShaderProgram:yuvConversionProgram];
-            
-            glEnableVertexAttribArray(yuvConversionPositionAttribute);
-            glEnableVertexAttribArray(yuvConversionTextureCoordinateAttribute);
+            if (supportsFullYUVRange) {
+                [videoOutput setVideoSettings:[NSDictionary dictionaryWithObject:[NSNumber numberWithInt:kCVPixelFormatType_420YpCbCr8BiPlanarFullRange] forKey:(id)kCVPixelBufferPixelFormatTypeKey]];
+                isFullYUVRange = YES;
+            }
+            else {
+                [videoOutput setVideoSettings:[NSDictionary dictionaryWithObject:[NSNumber numberWithInt:kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange] forKey:(id)kCVPixelBufferPixelFormatTypeKey]];
+                isFullYUVRange = NO;
+            }
         }
-    });
-    
-    [videoOutput setSampleBufferDelegate:self queue:cameraProcessingQueue];
-	if ([_captureSession canAddOutput:videoOutput]) {
-		[_captureSession addOutput:videoOutput];
-	}
-	else {
-		NSLog(@"Couldn't add video output");
-        return nil;
-	}
-    
-	_captureSessionPreset = sessionPreset;
-    [_captureSession setSessionPreset:_captureSessionPreset];
-
+        else {
+            [videoOutput setVideoSettings:[NSDictionary dictionaryWithObject:[NSNumber numberWithInt:kCVPixelFormatType_32BGRA] forKey:(id)kCVPixelBufferPixelFormatTypeKey]];
+        }
+        
+        runSynchronouslyOnVideoProcessingQueue(^{
+            if (captureAsYUV) {
+                [GPUImageContext useImageProcessingContext];
+                if (isFullYUVRange) {
+                    yuvConversionProgram = [[GPUImageContext sharedImageProcessingContext] programForVertexShaderString:kGPUImageVertexShaderString fragmentShaderString:kGPUImageYUVFullRangeConversionForLAFragmentShaderString];
+                }
+                else
+                {
+                    yuvConversionProgram = [[GPUImageContext sharedImageProcessingContext] programForVertexShaderString:kGPUImageVertexShaderString fragmentShaderString:kGPUImageYUVVideoRangeConversionForLAFragmentShaderString];
+                }
+                
+                if (!yuvConversionProgram.initialized) {
+                    [yuvConversionProgram addAttribute:@"position"];
+                    [yuvConversionProgram addAttribute:@"inputTextureCoordinate"];
+                    
+                    if (![yuvConversionProgram link]) {
+                        NSString *progLog = [yuvConversionProgram programLog];
+                        NSLog(@"Program link log: %@", progLog);
+                        NSString *fragLog = [yuvConversionProgram fragmentShaderLog];
+                        NSLog(@"Fragment shader compile log: %@", fragLog);
+                        NSString *vertLog = [yuvConversionProgram vertexShaderLog];
+                        NSLog(@"Vertex shader compile log: %@", vertLog);
+                        yuvConversionProgram = nil;
+                        NSAssert(NO, @"Filter shader link failed");
+                    }
+                }
+                
+                yuvConversionPositionAttribute = [yuvConversionProgram attributeIndex:@"position"];
+                yuvConversionTextureCoordinateAttribute = [yuvConversionProgram attributeIndex:@"inputTextureCoordinate"];
+                yuvConversionLuminanceTextureUniform = [yuvConversionProgram uniformIndex:@"luminanceTexture"];
+                yuvConversionChrominanceTextureUniform = [yuvConversionProgram uniformIndex:@"chrominanceTexture"];
+                yuvConversionMatrixUniform = [yuvConversionProgram uniformIndex:@"colorConversionMatrix"];
+                
+                [GPUImageContext setActiveShaderProgram:yuvConversionProgram];
+                
+                glEnableVertexAttribArray(yuvConversionPositionAttribute);
+                glEnableVertexAttribArray(yuvConversionTextureCoordinateAttribute);
+            }
+        });
+        
+        [videoOutput setSampleBufferDelegate:self queue:cameraProcessingQueue];
+        if ([_captureSession canAddOutput:videoOutput]) {
+            [_captureSession addOutput:videoOutput];
+        }
+        else {
+            NSLog(@"Couldn't add video output");
+            return nil;
+        }
+        
+        _captureSessionPreset = sessionPreset;
+        [_captureSession setSessionPreset:_captureSessionPreset];
+        
 // This will let you get 60 FPS video from the 720p preset on an iPhone 4S, but only that device and that preset
-//    AVCaptureConnection *conn = [videoOutput connectionWithMediaType:AVMediaTypeVideo];
+//      AVCaptureConnection *conn = [videoOutput connectionWithMediaType:AVMediaTypeVideo];
 //    
-//    if (conn.supportsVideoMinFrameDuration)
-//        conn.videoMinFrameDuration = CMTimeMake(1,60);
-//    if (conn.supportsVideoMaxFrameDuration)
-//        conn.videoMaxFrameDuration = CMTimeMake(1,60);
-    
-    [_captureSession commitConfiguration];
+//      if (conn.supportsVideoMinFrameDuration)
+//          conn.videoMinFrameDuration = CMTimeMake(1,60);
+//      if (conn.supportsVideoMaxFrameDuration)
+//          conn.videoMaxFrameDuration = CMTimeMake(1,60);
+        
+        // audio preference
+        self.audioPreference = audioPreference;
+        if (audioPreference == GPUImageVideoCameraAudioPreferenceAlways) {
+            [self _addAudioInputsAndOutputs];
+        }
+        
+        [_captureSession commitConfiguration];
+    }
     
 	return self;
 }
@@ -298,6 +304,9 @@ NSString *const kGPUImageYUVVideoRangeConversionForLAFragmentShaderString = SHAD
     [audioOutput setSampleBufferDelegate:nil queue:dispatch_get_main_queue()];
     
     [self removeInputsAndOutputs];
+    if (self.audioPreference == GPUImageVideoCameraAudioPreferenceAlways) {
+        [self removeAudioInputsAndOutputs];
+    }
     
 // ARC forbids explicit message send of 'release'; since iOS 6 even for dispatch_release() calls: stripping it out in that case is required.
 #if !OS_OBJECT_USE_OBJC
@@ -316,6 +325,13 @@ NSString *const kGPUImageYUVVideoRangeConversionForLAFragmentShaderString = SHAD
     
     [_captureSession beginConfiguration];
     
+    [self _addAudioInputsAndOutputs];
+    
+    [_captureSession commitConfiguration];
+    return YES;
+}
+
+- (void)_addAudioInputsAndOutputs {
     _microphone = [AVCaptureDevice defaultDeviceWithMediaType:AVMediaTypeAudio];
     audioInput = [AVCaptureDeviceInput deviceInputWithDevice:_microphone error:nil];
     if ([_captureSession canAddInput:audioInput]) {
@@ -330,9 +346,6 @@ NSString *const kGPUImageYUVVideoRangeConversionForLAFragmentShaderString = SHAD
         NSLog(@"Couldn't add audio output");
     }
     [audioOutput setSampleBufferDelegate:self queue:audioProcessingQueue];
-    
-    [_captureSession commitConfiguration];
-    return YES;
 }
 
 - (BOOL)removeAudioInputsAndOutputs
@@ -957,13 +970,15 @@ NSString *const kGPUImageYUVVideoRangeConversionForLAFragmentShaderString = SHAD
 
 - (void)setAudioEncodingTarget:(GPUImageMovieWriter *)newValue;
 {
-    if (newValue) {
-        /* Add audio inputs and outputs, if necessary */
-        addedAudioInputsDueToEncodingTarget |= [self addAudioInputsAndOutputs];
-    } else if (addedAudioInputsDueToEncodingTarget) {
-        /* Remove audio inputs and outputs, if they were added by previously setting the audio encoding target */
-        [self removeAudioInputsAndOutputs];
-        addedAudioInputsDueToEncodingTarget = NO;
+    if (self.audioPreference == GPUImageVideoCameraAudioPreferenceOnDemand) {
+        if (newValue) {
+            /* Add audio inputs and outputs, if necessary */
+            addedAudioInputsDueToEncodingTarget |= [self addAudioInputsAndOutputs];
+        } else if (addedAudioInputsDueToEncodingTarget) {
+            /* Remove audio inputs and outputs, if they were added by previously setting the audio encoding target */
+            [self removeAudioInputsAndOutputs];
+            addedAudioInputsDueToEncodingTarget = NO;
+        }
     }
     
     [super setAudioEncodingTarget:newValue];
