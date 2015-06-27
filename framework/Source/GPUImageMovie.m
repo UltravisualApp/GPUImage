@@ -200,6 +200,11 @@
                 return;
             }
             
+            NSArray *tracks = [inputAsset tracksWithMediaType:AVMediaTypeVideo];
+            if (tracks.count < 1) {
+                return;
+            }
+            
             blockSelf.asset = inputAsset;
             [blockSelf processAsset];
             blockSelf = nil;
@@ -207,7 +212,7 @@
     }];
 }
 
-- (AVAssetReader*)createAssetReader
+- (AVAssetReader *)createAssetReader
 {
     NSError *error = nil;
     AVAssetReader *assetReader = [AVAssetReader assetReaderWithAsset:self.asset error:&error];
@@ -223,7 +228,8 @@
     }
     
     // Maybe set alwaysCopiesSampleData to NO on iOS 5.0 for faster video decoding
-    AVAssetTrack *videoTrack = [[self.asset tracksWithMediaType:AVMediaTypeVideo] objectAtIndex:0];
+    NSArray *tracks = [self.asset tracksWithMediaType:AVMediaTypeVideo];
+    AVAssetTrack *videoTrack = tracks.firstObject;
     AVAssetReaderTrackOutput *readerVideoTrackOutput = [AVAssetReaderTrackOutput assetReaderTrackOutputWithTrack:videoTrack outputSettings:outputSettings];
     readerVideoTrackOutput.alwaysCopiesSampleData = NO;
     [assetReader addOutput:readerVideoTrackOutput];
@@ -232,8 +238,7 @@
     BOOL shouldRecordAudioTrack = (([audioTracks count] > 0) && (self.audioEncodingTarget != nil) );
     AVAssetReaderTrackOutput *readerAudioTrackOutput = nil;
     
-    if (shouldRecordAudioTrack)
-    {
+    if (shouldRecordAudioTrack) {
         [self.audioEncodingTarget setShouldInvalidateAudioSampleWhenDone:YES];
         
         // This might need to be extended to handle movies with more than one audio track
@@ -272,8 +277,7 @@
     
     __unsafe_unretained GPUImageMovie *weakSelf = self;
     
-    if (synchronizedMovieWriter != nil)
-    {
+    if (synchronizedMovieWriter != nil) {
         [synchronizedMovieWriter setVideoInputReadyCallback:^{
             return [weakSelf readNextVideoFrameFromOutput:readerVideoTrackOutput];
         }];
@@ -284,8 +288,7 @@
         
         [synchronizedMovieWriter enableSynchronizationCallbacks];
     }
-    else
-    {
+    else {
         if (!movieReadingQueue) {
             movieReadingQueue = [GPUImageSharedDispatchQueueManager dequeueDispatchQueue];
         }

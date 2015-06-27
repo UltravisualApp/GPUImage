@@ -85,25 +85,20 @@ void GPUImageCreateResizedSampleBuffer(CVPixelBufferRef cameraFrame, CGSize fina
     {
         BOOL supportsFullYUVRange = NO;
         NSArray *supportedPixelFormats = photoOutput.availableImageDataCVPixelFormatTypes;
-        for (NSNumber *currentPixelFormat in supportedPixelFormats)
-        {
-            if ([currentPixelFormat intValue] == kCVPixelFormatType_420YpCbCr8BiPlanarFullRange)
-            {
+        for (NSNumber *currentPixelFormat in supportedPixelFormats) {
+            if ([currentPixelFormat intValue] == kCVPixelFormatType_420YpCbCr8BiPlanarFullRange) {
                 supportsFullYUVRange = YES;
             }
         }
         
-        if (supportsFullYUVRange)
-        {
+        if (supportsFullYUVRange) {
             [photoOutput setOutputSettings:[NSDictionary dictionaryWithObject:[NSNumber numberWithInt:kCVPixelFormatType_420YpCbCr8BiPlanarFullRange] forKey:(id)kCVPixelBufferPixelFormatTypeKey]];
         }
-        else
-        {
+        else {
             [photoOutput setOutputSettings:[NSDictionary dictionaryWithObject:[NSNumber numberWithInt:kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange] forKey:(id)kCVPixelBufferPixelFormatTypeKey]];
         }
     }
-    else
-    {
+    else {
         captureAsYUV = NO;
         [photoOutput setOutputSettings:[NSDictionary dictionaryWithObject:[NSNumber numberWithInt:kCVPixelFormatType_32BGRA] forKey:(id)kCVPixelBufferPixelFormatTypeKey]];
         [videoOutput setVideoSettings:[NSDictionary dictionaryWithObject:[NSNumber numberWithInt:kCVPixelFormatType_32BGRA] forKey:(id)kCVPixelBufferPixelFormatTypeKey]];
@@ -275,7 +270,7 @@ void GPUImageCreateResizedSampleBuffer(CVPixelBufferRef cameraFrame, CGSize fina
 {
     dispatch_semaphore_wait(frameRenderingSemaphore, DISPATCH_TIME_FOREVER);
 
-    if(photoOutput.isCapturingStillImage){
+    if (photoOutput.isCapturingStillImage) {
         block([NSError errorWithDomain:AVFoundationErrorDomain code:AVErrorMaximumStillImageCaptureRequestsExceeded userInfo:nil]);
         return;
     }
