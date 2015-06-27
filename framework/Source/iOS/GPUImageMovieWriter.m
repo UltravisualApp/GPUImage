@@ -82,8 +82,10 @@ NSString *const kGPUImageColorSwizzlingFragmentShaderString = SHADER_STRING
         self.previousAudioTime = kCMTimeNegativeInfinity;
         self.inputRotation = kGPUImageNoRotation;
         
-        _movieWriterContext = [[GPUImageContext alloc] init];
-        [_movieWriterContext useSharegroup:[[[GPUImageContext sharedImageProcessingContext] context] sharegroup]];
+        // https://github.com/BradLarson/GPUImage/issues/1942
+        _movieWriterContext = [GPUImageContext sharedImageProcessingContext];
+//        _movieWriterContext = [[GPUImageContext alloc] init];
+//        [_movieWriterContext useSharegroup:[[[GPUImageContext sharedImageProcessingContext] context] sharegroup]];
         
         runSynchronouslyOnContextQueue(_movieWriterContext, ^{
             [_movieWriterContext useAsCurrentContext];
