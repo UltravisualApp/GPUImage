@@ -189,6 +189,11 @@ NSString *const kGPUImageColorSwizzlingFragmentShaderString = SHADER_STRING
         }
     }
     
+    if ([outputSettings[AVVideoWidthKey] integerValue] <= 0 ||
+        [outputSettings[AVVideoHeightKey] integerValue] <= 0) {
+        @throw [NSException exceptionWithName:@"Output settings error" reason:@"AVVideoSettings dictionary must specify a positive width or height" userInfo:outputSettings];
+    }
+    
     /*
     NSDictionary *videoCleanApertureSettings = [NSDictionary dictionaryWithObjectsAndKeys:
                                                 [NSNumber numberWithInt:videoSize.width], AVVideoCleanApertureWidthKey,
