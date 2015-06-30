@@ -63,6 +63,7 @@ extern NSString *const kGPUImageColorSwizzlingFragmentShaderString;
 @protocol GPUImageMovieWriterDelegate <NSObject>
 
 @optional
+- (void)movieWriterDidStartWriting:(GPUImageMovieWriter *)movieWriter;
 - (void)movieWriter:(GPUImageMovieWriter *)movieWriter didFinishWithError:(NSError *)error;
 
 @end
