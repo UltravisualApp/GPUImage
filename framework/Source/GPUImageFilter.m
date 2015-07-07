@@ -291,8 +291,7 @@ NSString *const kGPUImagePassthroughFragmentShaderString = SHADER_STRING
 
 - (void)renderToTextureWithVertices:(const GLfloat *)vertices textureCoordinates:(const GLfloat *)textureCoordinates;
 {
-    if (self.preventRendering)
-    {
+    if (self.preventRendering) {
         [firstInputFramebuffer unlock];
         return;
     }
@@ -301,8 +300,7 @@ NSString *const kGPUImagePassthroughFragmentShaderString = SHADER_STRING
 
     outputFramebuffer = [[GPUImageContext sharedFramebufferCache] fetchFramebufferForSize:[self sizeOfFBO] textureOptions:self.outputTextureOptions onlyTexture:NO];
     [outputFramebuffer activateFramebuffer];
-    if (usingNextFrameForImageCapture)
-    {
+    if (usingNextFrameForImageCapture) {
         [outputFramebuffer lock];
     }
 
@@ -323,24 +321,20 @@ NSString *const kGPUImagePassthroughFragmentShaderString = SHADER_STRING
     
     [firstInputFramebuffer unlock];
     
-    if (usingNextFrameForImageCapture)
-    {
+    if (usingNextFrameForImageCapture) {
         dispatch_semaphore_signal(imageCaptureSemaphore);
     }
 }
 
 - (void)informTargetsAboutNewFrameAtTime:(CMTime)frameTime;
 {
-    if (self.frameProcessingCompletionBlock != NULL)
-    {
+    if (self.frameProcessingCompletionBlock != NULL) {
         self.frameProcessingCompletionBlock(self, frameTime);
     }
     
     // Get all targets the framebuffer so they can grab a lock on it
-    for (id<GPUImageInput> currentTarget in targets)
-    {
-        if (currentTarget != self.targetToIgnoreForUpdates)
-        {
+    for (id<GPUImageInput> currentTarget in targets) {
+        if (currentTarget != self.targetToIgnoreForUpdates) {
             NSInteger indexOfObject = [targets indexOfObject:currentTarget];
             NSInteger textureIndex = [[targetTextureIndices objectAtIndex:indexOfObject] integerValue];
 
