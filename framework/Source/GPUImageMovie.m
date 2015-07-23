@@ -31,6 +31,8 @@
     dispatch_queue_t movieReadingQueue;
 }
 
+@property (nonatomic, readwrite, getter=isProcessing) BOOL processing;
+
 - (void)processAsset;
 
 @end
@@ -204,6 +206,8 @@
             if (tracks.count < 1) {
                 return;
             }
+            
+            self.processing = YES;
             
             blockSelf.asset = inputAsset;
             [blockSelf processAsset];
@@ -688,6 +692,7 @@
 
 - (void)endProcessing;
 {
+    self.processing = NO;
     keepLooping = NO;
     [displayLink setPaused:YES];
     

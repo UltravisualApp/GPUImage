@@ -44,6 +44,10 @@
 @property (readonly, nonatomic) BOOL audioEncodingIsFinished;
 @property (readonly, nonatomic) BOOL videoEncodingIsFinished;
 
+/** Flag used to check if movie is processing
+ */
+@property (nonatomic, readonly, getter=isProcessing) BOOL processing;
+
 /// @name Initialization and teardown
 - (id)initWithAsset:(AVAsset *)asset;
 - (id)initWithPlayerItem:(AVPlayerItem *)playerItem;
