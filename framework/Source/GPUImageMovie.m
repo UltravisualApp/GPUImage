@@ -233,23 +233,35 @@
     
     // Maybe set alwaysCopiesSampleData to NO on iOS 5.0 for faster video decoding
     NSArray *tracks = [self.asset tracksWithMediaType:AVMediaTypeVideo];
-    AVAssetTrack *videoTrack = tracks.firstObject;
-    AVAssetReaderTrackOutput *readerVideoTrackOutput = [AVAssetReaderTrackOutput assetReaderTrackOutputWithTrack:videoTrack outputSettings:outputSettings];
-    readerVideoTrackOutput.alwaysCopiesSampleData = NO;
-    [assetReader addOutput:readerVideoTrackOutput];
+    if (tracks.count > 1) {
+        AVMutableVideoComposition *composition = [AVMutableVideoComposition videoCompositionWithPropertiesOfAsset:self.asset];
+        AVAssetReaderVideoCompositionOutput *output = [AVAssetReaderVideoCompositionOutput assetReaderVideoCompositionOutputWithVideoTracks:tracks videoSettings:outputSettings];
+        output.videoComposition = composition;
+        output.alwaysCopiesSampleData = NO;
+        [assetReader addOutput:output];
+    }
+    else {
+        AVAssetTrack *videoTrack = tracks.firstObject;
+        AVAssetReaderTrackOutput *output = [AVAssetReaderTrackOutput assetReaderTrackOutputWithTrack:videoTrack outputSettings:outputSettings];
+        output.alwaysCopiesSampleData = NO;
+        [assetReader addOutput:output];
+    }
     
     NSArray *audioTracks = [self.asset tracksWithMediaType:AVMediaTypeAudio];
     BOOL shouldRecordAudioTrack = (([audioTracks count] > 0) && (self.audioEncodingTarget != nil) );
-    AVAssetReaderTrackOutput *readerAudioTrackOutput = nil;
-    
     if (shouldRecordAudioTrack) {
         [self.audioEncodingTarget setShouldInvalidateAudioSampleWhenDone:YES];
-        
-        // This might need to be extended to handle movies with more than one audio track
-        AVAssetTrack* audioTrack = [audioTracks objectAtIndex:0];
-        readerAudioTrackOutput = [AVAssetReaderTrackOutput assetReaderTrackOutputWithTrack:audioTrack outputSettings:nil];
-        readerAudioTrackOutput.alwaysCopiesSampleData = NO;
-        [assetReader addOutput:readerAudioTrackOutput];
+        if (audioTracks.count > 1) {
+            AVAssetReaderAudioMixOutput *output = [AVAssetReaderAudioMixOutput assetReaderAudioMixOutputWithAudioTracks:audioTracks audioSettings:nil];
+            output.alwaysCopiesSampleData = NO;
+            [assetReader addOutput:output];
+        }
+        else {
+            AVAssetTrack* audioTrack = audioTracks.firstObject;
+            AVAssetReaderTrackOutput *output = [AVAssetReaderTrackOutput assetReaderTrackOutputWithTrack:audioTrack outputSettings:nil];
+            output.alwaysCopiesSampleData = NO;
+            [assetReader addOutput:output];
+        }
     }
     
     return assetReader;
@@ -273,9 +285,8 @@
         }
     }
     
-    if ([reader startReading] == NO)
-    {
-        NSLog(@"Error reading from file at URL: %@", self.url);
+    if ([reader startReading] == NO) {
+        NSLog(@"\nERROR reading from file at URL: %@\n", self.url);
         return;
     }
     
