@@ -249,12 +249,11 @@
     
     //    dispatch_semaphore_wait(imageUpdateSemaphore, DISPATCH_TIME_FOREVER);
     
-    if (dispatch_semaphore_wait(imageUpdateSemaphore, DISPATCH_TIME_NOW) != 0)
-    {
+    if (dispatch_semaphore_wait(imageUpdateSemaphore, DISPATCH_TIME_NOW) != 0) {
         return NO;
     }
     
-    runAsynchronouslyOnVideoProcessingQueue(^{        
+    runAsynchronouslyOnVideoProcessingQueue(^{
         for (id<GPUImageInput> currentTarget in targets)
         {
             NSInteger indexOfObject = [targets indexOfObject:currentTarget];
