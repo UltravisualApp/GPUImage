@@ -160,4 +160,6 @@ typedef NS_ENUM(NSUInteger, GPUImageVideoCameraAudioPreference) {
 + (BOOL)isBackFacingCameraPresent;
 + (BOOL)isFrontFacingCameraPresent;
 
+- (CGSize)outputSize;
+
 @end

@@ -1125,4 +1125,21 @@ NSString *const kGPUImageYUVVideoRangeConversionForLAFragmentShaderString = SHAD
     [self updateOrientationSendToTargets];
 }
 
+- (CGSize)outputSize {
+    if ([videoInput.device hasMediaType:AVMediaTypeVideo]) {
+        for (AVCaptureInputPort *port in videoInput.ports) {
+            if ([port.mediaType isEqualToString:AVMediaTypeVideo]) {
+                CMFormatDescriptionRef formatDescription = port.formatDescription;
+                CMVideoDimensions dimensions = CMVideoFormatDescriptionGetDimensions(formatDescription);
+                CGSize cameraSize = CGSizeMake(dimensions.width, dimensions.height);
+                if (UIInterfaceOrientationIsPortrait(self.outputImageOrientation)) {
+                    cameraSize = CGSizeMake(cameraSize.height, cameraSize.width);
+                }
+                return cameraSize;
+            }
+        }
+    }
+    return CGSizeZero;
+}
+
 @end
